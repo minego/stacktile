@@ -1,0 +1,5 @@
+Basically just `contrib/layout.c` from rivers git repository, but with a
+Makefile for easier hacking.
+
+You can use this to easiely bootstrap your own layout client.
+
