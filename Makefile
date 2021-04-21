@@ -5,8 +5,8 @@ BINDIR=$(PREFIX)/bin
 
 CFLAGS=-Wall -Wextra -Wpedantic -Wno-unused-parameter
 LIBS=-lwayland-client
-OBJ=layout.o river-layout-unstable-v1.o river-options-unstable-v1.o
-GEN=river-layout-unstable-v1.h river-layout-unstable-v1.c river-options-unstable-v1.h river-options-unstable-v1.c
+OBJ=layout.o river-layout-v2.o
+GEN=river-layout-v2.h river-layout-v2.c
 
 layout: $(OBJ)
 	$(CC)$ $(LDFLAGS) -o $@ $(OBJ) $(LIBS)
