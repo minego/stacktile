@@ -1,36 +1,3 @@
-/*
- * Tiled layout for river, implemented in understandable, simple, commented code.
- * Reading this code should help you get a basic understanding of how to use
- * river-layout to create a basic layout generator.
- *
- * Q: Wow, this is a lot of code just for a layout!
- * A: No, it really is not. Most of the code here is just generic Wayland client
- *    boilerplate. The actual layout part is pretty small.
- *
- * Q: Can I use this to port dwm layouts to river?
- * A: Yes you can! You just need to replace the logic in layout_handle_layout_demand().
- *    You don't even need to fully understand the protocol if all you want to
- *    do is just port some simple layouts.
- *
- * Q: I have no idea how any of this works.
- * A: If all you want to do is create simple layouts, you do not need to
- *    understand the Wayland parts of the code. If you still want to understand
- *    it and are already familiar with how Wayland clients work, read the
- *    protocol. If you are new to writing Wayland client code, you can read
- *    https://wayland-book.com, then read the protocol.
- *
- * Q: How do I build this?
- * A: To build, you need to generate the header and code of the layout protocol
- *    extension and link against them. This is achieved with the following
- *    commands (You may want to setup a build system).
- *
- *        wayland-scanner private-code < river-layout-v2.xml > river-layout-v2.c
- *        wayland-scanner client-header < river-layout-v2.xml > river-layout-v2.h
- *        gcc -Wall -Wextra -Wpedantic -Wno-unused-parameter -c -o layout.o layout.c
- *        gcc -Wall -Wextra -Wpedantic -Wno-unused-parameter -c -o river-layout-v2.o river-layout-v2.c
- *        gcc -o layout layout.o river-layout-v2.o -lwayland-client
- */
-
 #include<assert.h>
 #include<stdbool.h>
 #include<stdint.h>
@@ -57,15 +24,12 @@ struct Output
 
 	uint32_t main_count;
 	double main_factor;
-	uint32_t view_padding;
+	uint32_t inner_padding;
 	uint32_t outer_padding;
 
 	bool configured;
 };
 
-/* In Wayland it's a good idea to have your main data global, since you'll need
- * it everywhere anyway.
- */
 struct wl_display  *wl_display;
 struct wl_registry *wl_registry;
 struct wl_callback *sync_callback;
@@ -79,55 +43,75 @@ static void layout_handle_layout_demand (void *data, struct river_layout_v2 *riv
 {
 	struct Output *output = (struct Output *)data;
 
-	/* Simple tiled layout with no frills.
-	 *
-	 * If you want to create your own simple layout, just rip the following
-	 * code out and replace it with your own logic. All content un-aware
-	 * dynamic tiling layouts you know, for example from dwm, can be easily
-	 * ported to river this way. If you want to create layouts that are
-	 * content aware, meaning they react to the currently visible windows,
-	 * you have to create handlers for the advertise_view and advertise_done
-	 * events. Happy hacking!
-	 */
 	width -= 2 * output->outer_padding, height -= 2 * output->outer_padding;
-	unsigned int main_size, stack_size, view_x, view_y, view_width, view_height;
+	unsigned int singular_main_size, main_size, stack_size, view_x, view_y, view_width, view_height;
+	int left_over = view_count - output->main_count - 1;
+	const float secondary_area_size = 0.6;
+	const float stack_area_size     = 0.4;
+
 	if ( output->main_count == 0 )
 	{
 		main_size  = 0;
 		stack_size = width;
 	}
-	else if ( view_count <= output->main_count )
-	{
-		main_size  = width;
-		stack_size = 0;
-	}
 	else
 	{
-		main_size  = width * output->main_factor;
-		stack_size = width - main_size;
+		if ( view_count <= output->main_count )
+		{
+			main_size  = width;
+			stack_size = 0;
+		}
+		else
+		{
+			main_size  = (width * output->main_factor) - (output->inner_padding / 2);
+			stack_size = width - (main_size + output->inner_padding);
+		}
+
+		if ( output->main_count == 1 )
+			singular_main_size = main_size;
+		else
+		{
+			const int real_main_count = MIN(output->main_count, view_count);
+			singular_main_size = (main_size - ((real_main_count - 1) * output->inner_padding)) / real_main_count;
+		}
 	}
 	for (unsigned int i = 0; i < view_count; i++)
 	{
-		if ( i < output->main_count ) /* main area. */
+		if ( i < output->main_count  ) /* Main area. */
 		{
-			view_x      = 0;
-			view_width  = main_size;
-			view_height = height / MIN(output->main_count, view_count);
-			view_y      = i * view_height;
+			view_width  = singular_main_size;
+			view_height = height;
+			view_x      = i * view_width + (i * output->inner_padding);
+			view_y      = 0;
+		}
+		else if ( i == output->main_count ) /* Secondary area. */
+		{
+			view_x      = main_size + output->inner_padding;
+			view_width  = stack_size;
+			view_y      = 0;
+			view_height = left_over == 0 ? height : (secondary_area_size * height) - (output->inner_padding / 2);
 		}
 		else /* Stack area. */
 		{
-			view_x      = main_size;
-			view_width  = stack_size;
-			view_height = height / ( view_count - output->main_count);
-			view_y      = (i - output->main_count) * view_height;
+			if ( left_over == 1 )
+			{
+				view_x      = main_size + output->inner_padding;
+				view_width  = stack_size;
+				view_height = (stack_area_size * height) - (output->inner_padding / 2);
+				view_y      = (secondary_area_size * height) + (output->inner_padding / 2);
+			}
+			else
+			{
+				view_x      = main_size + output->inner_padding + (0.1 * stack_size / (left_over - 1)) * (i - output->main_count - 1);
+				view_width  = stack_size * 0.9;
+				view_height = ((stack_area_size * height) - (output->inner_padding / 2)) * 0.9;
+				view_y      = secondary_area_size * height + (output->inner_padding / 2) + (0.1 * (stack_area_size * height) / (left_over - 1)) * (i - output->main_count - 1);
+			}
 		}
 
 		river_layout_v2_push_view_dimensions(output->layout, serial,
-				view_x + output->view_padding + output->outer_padding,
-				view_y + output->view_padding + output->outer_padding,
-				view_width - (2 * output->view_padding),
-				view_height - (2 * output->view_padding));
+				view_x + output->outer_padding, view_y + output->outer_padding,
+				view_width, view_height);
 	}
 
 	river_layout_v2_commit(output->layout, serial);
@@ -135,13 +119,6 @@ static void layout_handle_layout_demand (void *data, struct river_layout_v2 *riv
 
 static void layout_handle_namespace_in_use (void *data, struct river_layout_v2 *river_layout_v2)
 {
-	/* Oh no, the namespace we choose is already used by another client!
-	 * All we can do now is destroy the river_layout object. Because we are
-	 * lazy, we just abort and let our cleanup mechanism destroy it. A more
-	 * sophisticated client could instead destroy only the one single
-	 * affected river_layout object and recover from this mishap. Writing
-	 * such a client is left as an exercise for the reader.
-	 */
 	fputs("Namespace already in use.\n", stderr);
 	loop = false;
 }
@@ -149,10 +126,6 @@ static void layout_handle_namespace_in_use (void *data, struct river_layout_v2 *
 static void layout_handle_set_int_value (void *data, struct river_layout_v2 *river_layout_v2,
 		const char *name, int32_t value)
 {
-	/* This event is used by the server to tell us to change the value of
-	 * one of our layout parameters, identified by name. A layout_demand
-	 * event will be send immediately afterwards.
-	 */
 	struct Output *output = (struct Output *)data;
 
 	/* All integer parameters of this layout only accept positive values. */
@@ -161,8 +134,8 @@ static void layout_handle_set_int_value (void *data, struct river_layout_v2 *riv
 
 	if ( strcmp(name, "main_count") == 0 )
 		output->main_count = (uint32_t)value;
-	else if ( strcmp(name, "view_padding") == 0 )
-		output->view_padding = (uint32_t)value;
+	else if ( strcmp(name, "inner_padding") == 0 )
+		output->inner_padding = (uint32_t)value;
 	else if ( strcmp(name, "outer_padding") == 0 )
 		output->outer_padding = (uint32_t)value;
 }
@@ -170,20 +143,16 @@ static void layout_handle_set_int_value (void *data, struct river_layout_v2 *riv
 static void layout_handle_mod_int_value (void *data, struct river_layout_v2 *river_layout_v2,
 		const char *name, int32_t delta)
 {
-	/* This event is used by the server to tell us to modify the value of
-	 * one of our layout parameters by a delta, identified by name. A
-	 * layout_demand event will be send immediately afterwards.
-	 */
 	struct Output *output = (struct Output *)data;
 	if ( strcmp(name, "main_count") == 0 )
 	{
 		if ( (int32_t)output->main_count + delta >= 0 )
 			output->main_count = output->main_count + delta;
 	}
-	else if ( strcmp(name, "view_padding") == 0 )
+	else if ( strcmp(name, "inner_padding") == 0 )
 	{
-		if ( (int32_t)output->view_padding + delta >= 0 )
-			output->view_padding = output->view_padding + delta;
+		if ( (int32_t)output->inner_padding + delta >= 0 )
+			output->inner_padding = output->inner_padding + delta;
 	}
 	else if ( strcmp(name, "outer_padding") == 0 )
 	{
@@ -208,7 +177,6 @@ static void layout_handle_mod_fixed_value (void *data, struct river_layout_v2 *r
 		output->main_factor = CLAMP(output->main_factor + wl_fixed_to_double(delta), 0.1, 0.9);
 }
 
-/* A no-op function we plug into listeners when we don't want to handle an event. */
 static void noop () {}
 
 static const struct river_layout_v2_listener layout_listener = {
@@ -226,13 +194,8 @@ static const struct river_layout_v2_listener layout_listener = {
 static void configure_output (struct Output *output)
 {
 	output->configured = true;
-
-	/* The namespace of the layout is how the compositor chooses what layout
-	 * to use. It can be any arbitrary string. It should describe roughly
-	 * what kind of layout your client will create, so here we use "tile".
-	 */
 	output->layout = river_layout_manager_v2_get_layout(layout_manager,
-			output->output, "tile");
+			output->output, "stacktile");
 	river_layout_v2_add_listener(output->layout, &layout_listener, output);
 }
 
@@ -249,21 +212,11 @@ static bool create_output (struct wl_output *wl_output)
 	output->layout     = NULL;
 	output->configured = false;
 
-	/* These are the parameters of our layout. In this case, they are the
-	 * ones you'd typically expect from a dynamic tiling layout, but if you
-	 * are creative, you can do more. You can use any arbitrary amount of
-	 * integer, fixed and string values in your layout. If the user wants to
-	 * change a value, the server lets us know using events of the
-	 * river_layout object. They need to be initialiued with defaults though.
-	 */
 	output->main_count    = 1;
 	output->main_factor   = 0.6;
-	output->view_padding  = 5;
-	output->outer_padding = 5;
+	output->inner_padding = 10;
+	output->outer_padding = 10;
 
-	/* If we already have the river_layout_manager, we can get a
-	 * river_layout for this output.
-	 */
 	if ( layout_manager != NULL )
 		configure_output(output);
 
@@ -316,9 +269,6 @@ static void sync_handle_done (void *data, struct wl_callback *wl_callback,
 	wl_callback_destroy(wl_callback);
 	sync_callback = NULL;
 
-	/* When this function is called, the registry finished advertising all
-	 * available globals. Let's check if we have everything we need.
-	 */
 	if ( layout_manager == NULL )
 	{
 		fputs("Wayland compositor does not support river-layout-v2.\n", stderr);
@@ -327,10 +277,6 @@ static void sync_handle_done (void *data, struct wl_callback *wl_callback,
 		return;
 	}
 
-	/* If outputs were registered before the river_layout_manager is
-	 * available, they won't have a river_layout, so we need to create those
-	 * here.
-	 */
 	struct Output *output;
 	wl_list_for_each(output, &outputs, link)
 		if (! output->configured)
@@ -367,9 +313,6 @@ static bool init_wayland (void)
 	wl_registry = wl_display_get_registry(wl_display);
 	wl_registry_add_listener(wl_registry, &registry_listener, NULL);
 
-	/* The sync callback we attach here will be called when all previous
-	 * requests have been handled by the server.
-	 */
 	sync_callback = wl_display_sync(wl_display);
 	wl_callback_add_listener(sync_callback, &sync_callback_listener, NULL);
 
@@ -402,3 +345,4 @@ int main (int argc, char *argv[])
 	finish_wayland();
 	return ret;
 }
+

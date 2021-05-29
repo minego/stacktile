@@ -1,5 +1,3 @@
-Basically just `contrib/layout.c` from rivers git repository, but with a
-Makefile for easier hacking.
-
-You can use this to easiely bootstrap your own layout client.
+A simple tiled layout for river which places the main views into columns and the
+stack into a deck.
 

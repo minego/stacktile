@@ -5,10 +5,10 @@ BINDIR=$(PREFIX)/bin
 
 CFLAGS=-Wall -Wextra -Wpedantic -Wno-unused-parameter
 LIBS=-lwayland-client
-OBJ=layout.o river-layout-v2.o
+OBJ=stacktile.o river-layout-v2.o
 GEN=river-layout-v2.h river-layout-v2.c
 
-layout: $(OBJ)
+stacktile: $(OBJ)
 	$(CC)$ $(LDFLAGS) -o $@ $(OBJ) $(LIBS)
 
 $(OBJ): $(GEN)
