@@ -183,11 +183,11 @@ static void layout_handle_layout_demand (void *data, struct river_layout_v2 *riv
 
 	if ( remainder_count == 1 )
 		river_layout_v2_push_view_dimensions(river_layout_v2, serial,
-				(int32_t)(output->outer_padding + main_size + output->inner_padding),
+				(int32_t)(output->outer_padding + (main_size == 0 ? 0 : main_size + output->inner_padding)),
 				(int32_t)(output->outer_padding), (int32_t)stack_size, (int32_t)height);
 	else if ( remainder_count > 1 )
 	{
-		const uint32_t remainder_x = output->inner_padding + main_size + output->inner_padding;
+		const uint32_t remainder_x = output->inner_padding + (main_size == 0 ? 0 : main_size + output->inner_padding);
 		const uint32_t top_size = 0.6 * (height - output->inner_padding);
 		const uint32_t bottom_size = 0.4 * (height - output->inner_padding);
 
