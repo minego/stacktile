@@ -1,9 +1,10 @@
-#include<assert.h>
-#include<stdbool.h>
-#include<stdint.h>
-#include<stdio.h>
-#include<stdlib.h>
-#include<string.h>
+#include <assert.h>
+#include <getopt.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include<wayland-client.h>
 #include<wayland-client-protocol.h>
@@ -14,6 +15,15 @@
 #define MIN(a, b) ( a < b ? a : b )
 #define MAX(a, b) ( a > b ? a : b )
 #define CLAMP(a, b, c) ( MIN(MAX(b, c), MAX(MIN(b, c), a)) )
+
+const char usage[] =
+	"Usage: stacktile [options...]\n"
+	"   --inner-padding  <int>\n"
+	"   --outer-padding  <int>\n"
+	"   --main-count     <int>\n"
+	"   --main-factor    <float>\n"
+	"   --sublayout      rows|columns|stack\n"
+	"\n";
 
 enum Sublayout
 {
@@ -45,6 +55,12 @@ struct river_layout_manager_v2 *layout_manager;
 struct wl_list outputs;
 bool loop = true;
 int ret = EXIT_FAILURE;
+
+uint32_t default_main_count = 1;
+double default_main_factor = 0.6;
+uint32_t default_inner_padding = 10;
+uint32_t default_outer_padding = 10;
+enum Sublayout default_sublayout = ROWS;
 
 static void sublayout_stack (struct river_layout_v2 *river_layout_v2, uint32_t serial,
 		uint32_t x, uint32_t y, uint32_t _width, uint32_t _height, uint32_t amount)
@@ -259,19 +275,25 @@ static void layout_handle_mod_fixed_value (void *data, struct river_layout_v2 *r
 		output->main_factor = CLAMP(output->main_factor + wl_fixed_to_double(delta), 0.1, 0.9);
 }
 
+static bool sublayout_from_string (const char *str, enum Sublayout *sublayout)
+{
+	if ( strcmp(str, "columns") == 0 )
+		*sublayout = COLUMNS;
+	else if ( strcmp(str, "rows") == 0 )
+		*sublayout = ROWS;
+	else if ( strcmp(str, "stack") == 0 )
+		*sublayout = STACK;
+	else
+		return false;
+	return true;
+}
+
 static void layout_handle_set_string_value (void *data, struct river_layout_v2 *river_layout_v2,
 		const char *name, const char *str)
 {
 	struct Output *output = (struct Output *)data;
 	if ( strcmp(name, "sublayout") == 0 )
-	{
-		if ( strcmp(str, "columns") == 0 )
-			output->sublayout = COLUMNS;
-		else if ( strcmp(str, "rows") == 0 )
-			output->sublayout = ROWS;
-		else if ( strcmp(str, "stack") == 0 )
-			output->sublayout = STACK;
-	}
+		sublayout_from_string(str, &output->sublayout);
 }
 
 static void noop () {}
@@ -309,11 +331,11 @@ static bool create_output (struct wl_output *wl_output)
 	output->layout     = NULL;
 	output->configured = false;
 
-	output->main_count    = 1;
-	output->main_factor   = 0.6;
-	output->inner_padding = 10;
-	output->outer_padding = 10;
-	output->sublayout     = COLUMNS;
+	output->main_count    = default_main_count;
+	output->main_factor   = default_main_factor;
+	output->inner_padding = default_inner_padding;
+	output->outer_padding = default_outer_padding;
+	output->sublayout     = default_sublayout;
 
 	if ( layout_manager != NULL )
 		configure_output(output);
@@ -435,6 +457,80 @@ static void finish_wayland (void)
 
 int main (int argc, char *argv[])
 {
+	enum
+	{
+		INNER_PADDING,
+		OUTER_PADDING,
+		MAIN_FACTOR,
+		MAIN_COUNT,
+		SUBLAYOUT,
+	};
+
+	const struct option opts[] = {
+		{ "help",          no_argument,       NULL, 'h'           },
+		{ "inner-padding", no_argument,       NULL, INNER_PADDING },
+		{ "outer-padding", required_argument, NULL, OUTER_PADDING },
+		{ "main-factor",   required_argument, NULL, MAIN_FACTOR   },
+		{ "main-count",    required_argument, NULL, MAIN_COUNT    },
+		{ "sublayout",     required_argument, NULL, SUBLAYOUT     },
+	};
+
+	int opt;
+	int32_t tmp;
+	while ( (opt = getopt_long(argc, argv, "h", opts, NULL)) != -1 ) switch (opt)
+	{
+		case 'h':
+			fputs(usage, stderr);
+			return EXIT_SUCCESS;
+
+		case INNER_PADDING:
+			tmp = atoi(optarg);
+			if ( tmp < 0 )
+			{
+				fputs("ERROR: Inner padding may not be negative.\n", stderr);
+				return EXIT_FAILURE;
+			}
+			default_inner_padding = (uint32_t)tmp;
+			break;
+
+		case OUTER_PADDING:
+			tmp = atoi(optarg);
+			if ( tmp < 0 )
+			{
+				fputs("ERROR: Outer padding may not be negative.\n", stderr);
+				return EXIT_FAILURE;
+			}
+			default_outer_padding = (uint32_t)tmp;
+			break;
+
+		case MAIN_COUNT:
+			tmp = atoi(optarg);
+			if ( tmp < 0 )
+			{
+				fputs("ERROR: Main count may not be negative.\n", stderr);
+				return EXIT_FAILURE;
+			}
+			default_main_count = (uint32_t)tmp;
+			break;
+
+		case MAIN_FACTOR:
+			default_main_factor = CLAMP(atof(optarg), 0.1, 0.9);
+			break;
+
+		case SUBLAYOUT:
+			if (!sublayout_from_string(optarg, &default_sublayout))
+			{
+				fputs("ERROR: Invalid sublayout.\n", stderr);
+				return EXIT_FAILURE;
+			}
+			break;
+
+		default:
+			return EXIT_FAILURE;
+
+	}
+
+
 	if (init_wayland())
 	{
 		ret = EXIT_SUCCESS;
