@@ -15,6 +15,13 @@
 #define MAX(a, b) ( a > b ? a : b )
 #define CLAMP(a, b, c) ( MIN(MAX(b, c), MAX(MIN(b, c), a)) )
 
+enum Sublayout
+{
+	COLUMNS,
+	ROWS,
+	STACK,
+};
+
 struct Output
 {
 	struct wl_list link;
@@ -26,6 +33,7 @@ struct Output
 	double main_factor;
 	uint32_t inner_padding;
 	uint32_t outer_padding;
+	enum Sublayout sublayout;
 
 	bool configured;
 };
@@ -38,80 +46,142 @@ struct wl_list outputs;
 bool loop = true;
 int ret = EXIT_FAILURE;
 
+static void sublayout_stack (struct river_layout_v2 *river_layout_v2, uint32_t serial,
+		uint32_t x, uint32_t y, uint32_t _width, uint32_t _height, uint32_t amount)
+{
+	if ( amount == 0 )
+		return;
+	if ( amount == 1 )
+	{
+		river_layout_v2_push_view_dimensions(river_layout_v2, serial,
+				(int32_t)x, (int32_t)y, (int32_t)_width, (int32_t)_height);
+		return;
+	}
+
+	const uint32_t width = 0.95 * _width;
+	const uint32_t height = 0.95 * _height;
+	const uint32_t x_offset = (0.05 *_width) / (amount - 1);
+	const uint32_t y_offset = (0.05 *_height) / (amount - 1);
+
+	for (uint32_t i = 0; i < amount; i++)
+		river_layout_v2_push_view_dimensions(river_layout_v2, serial,
+				(int32_t)(x + (i * x_offset)),
+				(int32_t)(y + (i * y_offset)),
+				(int32_t)width, (int32_t)height);
+}
+
+static void sublayout_columns (struct river_layout_v2 *river_layout_v2, uint32_t serial,
+		uint32_t x, uint32_t y, uint32_t _width, uint32_t _height, uint32_t amount,
+		uint32_t inner_padding)
+{
+	if ( amount == 0 )
+		return;
+	if ( amount == 1 )
+	{
+		river_layout_v2_push_view_dimensions(river_layout_v2, serial,
+				(int32_t)x, (int32_t)y, (int32_t)_width, (int32_t)_height);
+		return;
+	}
+
+	const uint32_t width = (_width - ((amount - 1) * inner_padding)) / amount;
+	const uint32_t height = _height;
+
+	for (uint32_t i = 0; i < amount; i++)
+		river_layout_v2_push_view_dimensions(river_layout_v2, serial,
+				(int32_t)(x + (i * width + (i * inner_padding))),
+				(int32_t)y,
+				(int32_t)width, (int32_t)height);
+}
+
+static void sublayout_rows (struct river_layout_v2 *river_layout_v2, uint32_t serial,
+		uint32_t x, uint32_t y, uint32_t _width, uint32_t _height, uint32_t amount,
+		uint32_t inner_padding)
+{
+	if ( amount == 0 )
+		return;
+	if ( amount == 1 )
+	{
+		river_layout_v2_push_view_dimensions(river_layout_v2, serial,
+				(int32_t)x, (int32_t)y, (int32_t)_width, (int32_t)_height);
+		return;
+	}
+
+	const uint32_t width = _width;
+	const uint32_t height = (_height - ((amount - 1) * inner_padding)) / amount;
+
+	for (uint32_t i = 0; i < amount; i++)
+		river_layout_v2_push_view_dimensions(river_layout_v2, serial,
+				(int32_t)y,
+				(int32_t)(y + (i * height + (i * inner_padding))),
+				(int32_t)width, (int32_t)height);
+}
+
 static void layout_handle_layout_demand (void *data, struct river_layout_v2 *river_layout_v2,
 		uint32_t view_count, uint32_t width, uint32_t height, uint32_t tags, uint32_t serial)
 {
 	struct Output *output = (struct Output *)data;
-
 	width -= 2 * output->outer_padding, height -= 2 * output->outer_padding;
-	unsigned int singular_main_size, main_size, stack_size, view_x, view_y, view_width, view_height;
-	int left_over = view_count - output->main_count - 1;
-	const float secondary_area_size = 0.6;
-	const float stack_area_size     = 0.4;
+	uint32_t main_size, stack_size;
 
-	if ( output->main_count == 0 )
+	const uint32_t main_count = MIN(output->main_count, view_count);
+	const uint32_t remainder_count = view_count - main_count;
+
+	if ( main_count == 0 ) /* No main, only stack. */
 	{
 		main_size  = 0;
 		stack_size = width;
 	}
-	else
+	else if ( view_count <= main_count ) /* No stack, only main. */
 	{
-		if ( view_count <= output->main_count )
-		{
-			main_size  = width;
-			stack_size = 0;
-		}
-		else
-		{
-			main_size  = (width * output->main_factor) - (output->inner_padding / 2);
-			stack_size = width - (main_size + output->inner_padding);
-		}
-
-		if ( output->main_count == 1 )
-			singular_main_size = main_size;
-		else
-		{
-			const int real_main_count = MIN(output->main_count, view_count);
-			singular_main_size = (main_size - ((real_main_count - 1) * output->inner_padding)) / real_main_count;
-		}
+		main_size  = width;
+		stack_size = 0;
 	}
-	for (unsigned int i = 0; i < view_count; i++)
+	else /* Both main and stack. */
 	{
-		if ( i < output->main_count  ) /* Main area. */
-		{
-			view_width  = singular_main_size;
-			view_height = height;
-			view_x      = i * view_width + (i * output->inner_padding);
-			view_y      = 0;
-		}
-		else if ( i == output->main_count ) /* Secondary area. */
-		{
-			view_x      = output->main_count > 0 ? main_size + output->inner_padding : 0;
-			view_width  = stack_size;
-			view_y      = 0;
-			view_height = left_over == 0 ? height : (secondary_area_size * height) - (output->inner_padding / 2);
-		}
-		else /* Stack area. */
-		{
-			if ( left_over == 1 )
-			{
-				view_x      = output->main_count > 0 ? main_size + output->inner_padding : 0;
-				view_width  = stack_size;
-				view_height = (stack_area_size * height) - (output->inner_padding / 2);
-				view_y      = (secondary_area_size * height) + (output->inner_padding / 2);
-			}
-			else
-			{
-				view_x      = (output->main_count > 0 ? main_size + output->inner_padding : 0) + (0.1 * stack_size / (left_over - 1)) * (i - output->main_count - 1);
-				view_width  = stack_size * 0.9;
-				view_height = ((stack_area_size * height) - (output->inner_padding / 2)) * 0.9;
-				view_y      = secondary_area_size * height + (output->inner_padding / 2) + (0.1 * (stack_area_size * height) / (left_over - 1)) * (i - output->main_count - 1);
-			}
-		}
+		main_size  = (width * output->main_factor) - (output->inner_padding / 2);
+		stack_size = width - (main_size + output->inner_padding);
+	}
 
-		river_layout_v2_push_view_dimensions(output->layout, serial,
-				view_x + output->outer_padding, view_y + output->outer_padding,
-				view_width, view_height);
+	switch (output->sublayout)
+	{
+		case COLUMNS:
+			sublayout_columns(river_layout_v2, serial,
+				output->outer_padding, output->outer_padding,
+				main_size, height, main_count,
+				output->inner_padding);
+			break;
+
+		case ROWS:
+			sublayout_rows(river_layout_v2, serial,
+				output->outer_padding, output->outer_padding,
+				main_size, height, main_count,
+				output->inner_padding);
+			break;
+
+		case STACK:
+			sublayout_stack(river_layout_v2, serial,
+				output->outer_padding, output->outer_padding,
+				main_size, height, main_count);
+			break;
+	}
+
+	if ( remainder_count == 1 )
+		river_layout_v2_push_view_dimensions(river_layout_v2, serial,
+				(int32_t)(output->outer_padding + main_size + output->inner_padding),
+				(int32_t)(output->outer_padding), (int32_t)stack_size, (int32_t)height);
+	else if ( remainder_count > 1 )
+	{
+		const uint32_t remainder_x = output->inner_padding + main_size + output->inner_padding;
+		const uint32_t top_size = 0.6 * (height - output->inner_padding);
+		const uint32_t bottom_size = 0.4 * (height - output->inner_padding);
+
+		river_layout_v2_push_view_dimensions(river_layout_v2, serial,
+				(int32_t)remainder_x, (int32_t)(output->outer_padding),
+				(int32_t)stack_size, (int32_t)top_size);
+
+		sublayout_stack(river_layout_v2, serial,
+				remainder_x, output->outer_padding + top_size + output->inner_padding,
+				stack_size, bottom_size, remainder_count - 1);
 	}
 
 	river_layout_v2_commit(output->layout, serial);
@@ -189,6 +259,21 @@ static void layout_handle_mod_fixed_value (void *data, struct river_layout_v2 *r
 		output->main_factor = CLAMP(output->main_factor + wl_fixed_to_double(delta), 0.1, 0.9);
 }
 
+static void layout_handle_set_string_value (void *data, struct river_layout_v2 *river_layout_v2,
+		const char *name, const char *str)
+{
+	struct Output *output = (struct Output *)data;
+	if ( strcmp(name, "sublayout") == 0 )
+	{
+		if ( strcmp(str, "columns") == 0 )
+			output->sublayout = COLUMNS;
+		else if ( strcmp(str, "rows") == 0 )
+			output->sublayout = ROWS;
+		else if ( strcmp(str, "stack") == 0 )
+			output->sublayout = STACK;
+	}
+}
+
 static void noop () {}
 
 static const struct river_layout_v2_listener layout_listener = {
@@ -198,7 +283,7 @@ static const struct river_layout_v2_listener layout_listener = {
 	.mod_int_value    = layout_handle_mod_int_value,
 	.set_fixed_value  = layout_handle_set_fixed_value,
 	.mod_fixed_value  = layout_handle_mod_fixed_value,
-	.set_string_value = noop,
+	.set_string_value = layout_handle_set_string_value,
 	.advertise_view   = noop,
 	.advertise_done   = noop,
 };
@@ -228,6 +313,7 @@ static bool create_output (struct wl_output *wl_output)
 	output->main_factor   = 0.6;
 	output->inner_padding = 10;
 	output->outer_padding = 10;
+	output->sublayout     = COLUMNS;
 
 	if ( layout_manager != NULL )
 		configure_output(output);
