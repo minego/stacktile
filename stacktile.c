@@ -86,7 +86,7 @@ static void layout_handle_layout_demand (void *data, struct river_layout_v2 *riv
 		}
 		else if ( i == output->main_count ) /* Secondary area. */
 		{
-			view_x      = main_size + output->inner_padding;
+			view_x      = output->main_count > 0 ? main_size + output->inner_padding : 0;
 			view_width  = stack_size;
 			view_y      = 0;
 			view_height = left_over == 0 ? height : (secondary_area_size * height) - (output->inner_padding / 2);
@@ -95,14 +95,14 @@ static void layout_handle_layout_demand (void *data, struct river_layout_v2 *riv
 		{
 			if ( left_over == 1 )
 			{
-				view_x      = main_size + output->inner_padding;
+				view_x      = output->main_count > 0 ? main_size + output->inner_padding : 0;
 				view_width  = stack_size;
 				view_height = (stack_area_size * height) - (output->inner_padding / 2);
 				view_y      = (secondary_area_size * height) + (output->inner_padding / 2);
 			}
 			else
 			{
-				view_x      = main_size + output->inner_padding + (0.1 * stack_size / (left_over - 1)) * (i - output->main_count - 1);
+				view_x      = (output->main_count > 0 ? main_size + output->inner_padding : 0) + (0.1 * stack_size / (left_over - 1)) * (i - output->main_count - 1);
 				view_width  = stack_size * 0.9;
 				view_height = ((stack_area_size * height) - (output->inner_padding / 2)) * 0.9;
 				view_y      = secondary_area_size * height + (output->inner_padding / 2) + (0.1 * (stack_area_size * height) / (left_over - 1)) * (i - output->main_count - 1);
