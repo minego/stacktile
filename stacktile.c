@@ -138,6 +138,11 @@ static void layout_handle_set_int_value (void *data, struct river_layout_v2 *riv
 		output->inner_padding = (uint32_t)value;
 	else if ( strcmp(name, "outer_padding") == 0 )
 		output->outer_padding = (uint32_t)value;
+	else if ( strcmp(name, "all_padding") == 0 )
+	{
+		output->inner_padding = (uint32_t)value;
+		output->outer_padding = (uint32_t)value;
+	}
 }
 
 static void layout_handle_mod_int_value (void *data, struct river_layout_v2 *river_layout_v2,
@@ -156,6 +161,13 @@ static void layout_handle_mod_int_value (void *data, struct river_layout_v2 *riv
 	}
 	else if ( strcmp(name, "outer_padding") == 0 )
 	{
+		if ( (int32_t)output->outer_padding + delta >= 0 )
+			output->outer_padding = output->outer_padding + delta;
+	}
+	else if ( strcmp(name, "all_padding") == 0 )
+	{
+		if ( (int32_t)output->inner_padding + delta >= 0 )
+			output->inner_padding = output->inner_padding + delta;
 		if ( (int32_t)output->outer_padding + delta >= 0 )
 			output->outer_padding = output->outer_padding + delta;
 	}
