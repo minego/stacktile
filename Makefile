@@ -20,10 +20,13 @@ $(OBJ): $(GEN)
 	$(SCANNER) client-header < $< > $@
 
 install:
-	install -D -t $(DESTDIR)$(BINDIR) layout
+	install -D stacktile $(DESTDIR)$(BINDIR)/stacktile
+
+uninstall:
+	$(RM) $(DESTDIR)$(BINDIR)/stacktile
 
 clean:
-	rm -f layout $(GEN) $(OBJ)
+	$(RM) stacktile $(GEN) $(OBJ)
 
 .PHONY: clean install
 
