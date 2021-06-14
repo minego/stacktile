@@ -2,6 +2,7 @@ SCANNER := wayland-scanner
 
 PREFIX=/usr/local
 BINDIR=$(PREFIX)/bin
+MANDIR=$(PREFIX)/share/man
 
 CFLAGS=-Wall -Wextra -Wpedantic -Wno-unused-parameter
 LIBS=-lwayland-client
@@ -20,10 +21,12 @@ $(OBJ): $(GEN)
 	$(SCANNER) client-header < $< > $@
 
 install:
-	install -D stacktile $(DESTDIR)$(BINDIR)/stacktile
+	install -D stacktile   $(DESTDIR)$(BINDIR)/stacktile
+	install -D stacktile.1 $(DESTDIR)$(MANDIR)/man1/stacktile.1
 
 uninstall:
 	$(RM) $(DESTDIR)$(BINDIR)/stacktile
+	$(RM) $(DESTDIR)$(MANDIR)/man1/stacktile.1
 
 clean:
 	$(RM) stacktile $(GEN) $(OBJ)

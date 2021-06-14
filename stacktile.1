@@ -1,0 +1,55 @@
+.TH stacktile 1 2021-03-14 stacktile-1.0.1
+
+.SH NAME
+stacktile - a layout generator for the river Wayland compositor
+
+.SH DESCRIPTION
+stacktile is a layout generator for river. The screen is devided into two areas,
+the main area and the remainder area.
+.P
+The main area is positioned on the left side of the screen and consist of a
+configurable amount of windows from the top of the list. Windows in the main
+area are arranged into a configurable sublayout.
+.P
+The remainder area is on the right side of the screen. All windows not in the
+main area will be placed here. If it features more than three windows, all but
+the first will be arranged into a stack, like a deck of cards, to save space.
+
+.SH VALUES
+\fBmain_count\fR (int)
+.RS 4
+The amount of windows in the main area.
+.P
+.RE
+
+\fBmain_factor\fR (fixed: [0.1, 0.9])
+.RS 4
+The relative size of the main area.
+.P
+.RE
+
+\fBinner_padding\fR (int)
+.RS 4
+The padding between windows.
+.P
+.RE
+
+\fBouter_padding\fR (int)
+.RS 4
+The padding around the layout.
+.P
+.RE
+
+\fBall_padding\fR (int)
+.RS 4
+This value changes both the inner and outer padding if set or modified.
+.P
+.RE
+
+.SH AUTHOR
+Leon Henrik Plickat
+
+.SH SEE ALSO
+.P
+\fBriver\fR(1), \fBriverctl\fR(1), \fBrivertile\fR(1)
+
