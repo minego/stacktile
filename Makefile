@@ -4,7 +4,7 @@ PREFIX=/usr/local
 BINDIR=$(PREFIX)/bin
 MANDIR=$(PREFIX)/share/man
 
-CFLAGS=-Wall -Wextra -Wpedantic -Wno-unused-parameter
+CFLAGS=-Wall -Wextra -Wpedantic -Wno-unused-parameter -Wconversion -Wformat-security -Wformat -Wsign-conversion -Wfloat-conversion -Wunused-result
 LIBS=-lwayland-client
 OBJ=stacktile.o river-layout-v2.o
 GEN=river-layout-v2.h river-layout-v2.c

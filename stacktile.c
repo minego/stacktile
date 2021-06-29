@@ -70,20 +70,20 @@ static void sublayout_stack (struct river_layout_v2 *river_layout_v2, uint32_t s
 	if ( amount == 1 )
 	{
 		river_layout_v2_push_view_dimensions(river_layout_v2, serial,
-				(int32_t)x, (int32_t)y, (int32_t)_width, (int32_t)_height);
+				(int32_t)x, (int32_t)y, _width, _height);
 		return;
 	}
 
-	const uint32_t width = 0.95 * _width;
-	const uint32_t height = 0.95 * _height;
-	const uint32_t x_offset = (0.05 *_width) / (amount - 1);
-	const uint32_t y_offset = (0.05 *_height) / (amount - 1);
+	const uint32_t width = (uint32_t)(0.95 * (double)_width);
+	const uint32_t height = (uint32_t)(0.95 * (double)_height);
+	const uint32_t x_offset = (uint32_t)(0.05 * (double)_width) / (amount - 1);
+	const uint32_t y_offset = (uint32_t)(0.05 * (double)_height) / (amount - 1);
 
 	for (uint32_t i = 0; i < amount; i++)
 		river_layout_v2_push_view_dimensions(river_layout_v2, serial,
 				(int32_t)(x + (i * x_offset)),
 				(int32_t)(y + (i * y_offset)),
-				(int32_t)width, (int32_t)height);
+				width, height);
 }
 
 static void sublayout_columns (struct river_layout_v2 *river_layout_v2, uint32_t serial,
@@ -95,7 +95,7 @@ static void sublayout_columns (struct river_layout_v2 *river_layout_v2, uint32_t
 	if ( amount == 1 )
 	{
 		river_layout_v2_push_view_dimensions(river_layout_v2, serial,
-				(int32_t)x, (int32_t)y, (int32_t)_width, (int32_t)_height);
+				(int32_t)x, (int32_t)y, _width, _height);
 		return;
 	}
 
@@ -106,7 +106,7 @@ static void sublayout_columns (struct river_layout_v2 *river_layout_v2, uint32_t
 		river_layout_v2_push_view_dimensions(river_layout_v2, serial,
 				(int32_t)(x + (i * width + (i * inner_padding))),
 				(int32_t)y,
-				(int32_t)width, (int32_t)height);
+				width, height);
 }
 
 static void sublayout_rows (struct river_layout_v2 *river_layout_v2, uint32_t serial,
@@ -118,7 +118,7 @@ static void sublayout_rows (struct river_layout_v2 *river_layout_v2, uint32_t se
 	if ( amount == 1 )
 	{
 		river_layout_v2_push_view_dimensions(river_layout_v2, serial,
-				(int32_t)x, (int32_t)y, (int32_t)_width, (int32_t)_height);
+				(int32_t)x, (int32_t)y, _width, _height);
 		return;
 	}
 
@@ -129,7 +129,7 @@ static void sublayout_rows (struct river_layout_v2 *river_layout_v2, uint32_t se
 		river_layout_v2_push_view_dimensions(river_layout_v2, serial,
 				(int32_t)y,
 				(int32_t)(y + (i * height + (i * inner_padding))),
-				(int32_t)width, (int32_t)height);
+				width, height);
 }
 
 static void layout_handle_layout_demand (void *data, struct river_layout_v2 *river_layout_v2,
@@ -154,7 +154,7 @@ static void layout_handle_layout_demand (void *data, struct river_layout_v2 *riv
 	}
 	else /* Both main and stack. */
 	{
-		main_size  = (width * output->main_factor) - (output->inner_padding / 2);
+		main_size  = (uint32_t)((double)width * output->main_factor) - (output->inner_padding / 2);
 		stack_size = width - (main_size + output->inner_padding);
 	}
 
@@ -184,16 +184,16 @@ static void layout_handle_layout_demand (void *data, struct river_layout_v2 *riv
 	if ( remainder_count == 1 )
 		river_layout_v2_push_view_dimensions(river_layout_v2, serial,
 				(int32_t)(output->outer_padding + (main_size == 0 ? 0 : main_size + output->inner_padding)),
-				(int32_t)(output->outer_padding), (int32_t)stack_size, (int32_t)height);
+				(int32_t)(output->outer_padding), stack_size, height);
 	else if ( remainder_count > 1 )
 	{
 		const uint32_t remainder_x = output->inner_padding + (main_size == 0 ? 0 : main_size + output->inner_padding);
-		const uint32_t top_size = 0.6 * (height - output->inner_padding);
-		const uint32_t bottom_size = 0.4 * (height - output->inner_padding);
+		const uint32_t top_size = (uint32_t)(0.6 * (double)(height - output->inner_padding));
+		const uint32_t bottom_size = (uint32_t)(0.4 * (double)(height - output->inner_padding));
 
 		river_layout_v2_push_view_dimensions(river_layout_v2, serial,
 				(int32_t)remainder_x, (int32_t)(output->outer_padding),
-				(int32_t)stack_size, (int32_t)top_size);
+				stack_size, top_size);
 
 		sublayout_stack(river_layout_v2, serial,
 				remainder_x, output->outer_padding + top_size + output->inner_padding,
@@ -238,24 +238,24 @@ static void layout_handle_mod_int_value (void *data, struct river_layout_v2 *riv
 	if ( strcmp(name, "main_count") == 0 )
 	{
 		if ( (int32_t)output->main_count + delta >= 0 )
-			output->main_count = output->main_count + delta;
+			output->main_count = output->main_count + (uint32_t)delta;
 	}
 	else if ( strcmp(name, "inner_padding") == 0 )
 	{
 		if ( (int32_t)output->inner_padding + delta >= 0 )
-			output->inner_padding = output->inner_padding + delta;
+			output->inner_padding = output->inner_padding + (uint32_t)delta;
 	}
 	else if ( strcmp(name, "outer_padding") == 0 )
 	{
 		if ( (int32_t)output->outer_padding + delta >= 0 )
-			output->outer_padding = output->outer_padding + delta;
+			output->outer_padding = output->outer_padding + (uint32_t)delta;
 	}
 	else if ( strcmp(name, "all_padding") == 0 )
 	{
 		if ( (int32_t)output->inner_padding + delta >= 0 )
-			output->inner_padding = output->inner_padding + delta;
+			output->inner_padding = output->inner_padding + (uint32_t)delta;
 		if ( (int32_t)output->outer_padding + delta >= 0 )
-			output->outer_padding = output->outer_padding + delta;
+			output->outer_padding = output->outer_padding + (uint32_t)delta;
 	}
 }
 
