@@ -14,6 +14,9 @@ area are arranged into a configurable sublayout.
 The remainder area is on the right side of the screen. All windows not in the
 main area will be placed here. If it features more than three windows, all but
 the first will be arranged into a stack, like a deck of cards, to save space.
+.P
+If layout values are changed, the change only applies to the currently focused
+tag set. Each tag set has individual layout values.
 
 .SH OPTIONS
 \fB--main-count\fR (int)
@@ -36,7 +39,7 @@ The default padding between windows.
 
 \fB--outer-padding\fR (int)
 .RS 4
-The padding around the layout.
+The default padding around the layout.
 .P
 .RE
 

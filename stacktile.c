@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
 #include<wayland-client.h>
 #include<wayland-client-protocol.h>
@@ -32,6 +33,25 @@ enum Sublayout
 	STACK,
 };
 
+enum Layout_value_status
+{
+	UNCHANGED = 0,
+	NEW,
+	MOD,
+};
+
+struct Layout_config
+{
+	struct wl_list link;
+	uint32_t tags;
+
+	uint32_t main_count;
+	double main_factor;
+	uint32_t inner_padding;
+	uint32_t outer_padding;
+	enum Sublayout sublayout;
+};
+
 struct Output
 {
 	struct wl_list link;
@@ -39,11 +59,25 @@ struct Output
 	struct wl_output       *output;
 	struct river_layout_v2 *layout;
 
-	uint32_t main_count;
-	double main_factor;
-	uint32_t inner_padding;
-	uint32_t outer_padding;
-	enum Sublayout sublayout;
+	struct wl_list layout_configs;
+
+	struct
+	{
+		enum Layout_value_status main_count_status;
+		int32_t main_count;
+
+		enum Layout_value_status main_factor_status;
+		double main_factor;
+
+		enum Layout_value_status inner_padding_status;
+		int32_t inner_padding;
+
+		enum Layout_value_status outer_padding_status;
+		int32_t outer_padding;
+
+		enum Layout_value_status sublayout_status;
+		enum Sublayout sublayout;
+	} pending_layout_config;
 
 	bool configured;
 };
@@ -56,11 +90,13 @@ struct wl_list outputs;
 bool loop = true;
 int ret = EXIT_FAILURE;
 
-uint32_t default_main_count = 1;
-double default_main_factor = 0.6;
-uint32_t default_inner_padding = 10;
-uint32_t default_outer_padding = 10;
-enum Sublayout default_sublayout = ROWS;
+struct Layout_config default_layout_config = {
+	.main_count = 1,
+	.main_factor = 0.6,
+	.inner_padding = 10,
+	.outer_padding = 10,
+	.sublayout = ROWS
+};
 
 static void sublayout_stack (struct river_layout_v2 *river_layout_v2, uint32_t serial,
 		uint32_t x, uint32_t y, uint32_t _width, uint32_t _height, uint32_t amount)
@@ -132,14 +168,116 @@ static void sublayout_rows (struct river_layout_v2 *river_layout_v2, uint32_t se
 				width, height);
 }
 
+/**
+ * Returns a layout config pointer for the given tag set, taking into account
+ * the pending layout configuration.
+ * 
+ * The returned config should not be modified.
+ */
+static struct Layout_config *get_layout_config (struct Output *output, uint32_t tags)
+{
+	struct Layout_config *config = NULL, *tmp;
+	wl_list_for_each(tmp, &output->layout_configs, link)
+		if ( tmp->tags == tags )
+		{
+			config = tmp;
+			break;
+		}
+
+	if ( config == NULL )
+	{
+		/* No config has been found. If there are pending changes, we
+		 * need to create a new one based on the default config.
+		 */
+		if ( output->pending_layout_config.main_count_status != UNCHANGED
+				|| output->pending_layout_config.main_factor_status != UNCHANGED
+				|| output->pending_layout_config.inner_padding_status != UNCHANGED
+				|| output->pending_layout_config.outer_padding_status != UNCHANGED
+				|| output->pending_layout_config.sublayout_status != UNCHANGED )
+		{
+			config = calloc(1, sizeof(struct Layout_config));
+			if ( config == NULL )
+			{
+				fprintf(stderr, "ERROR: calloc: %s\n", strerror(errno));
+				return &default_layout_config;
+			}
+			memcpy(config, &default_layout_config, sizeof(struct Layout_config));
+			config->tags = tags;
+			wl_list_insert(&output->layout_configs, &config->link);
+		}
+		else
+		{
+			/* No pending changes, so we can just use the default config. */
+			return &default_layout_config;
+		}
+	}
+
+	if ( output->pending_layout_config.sublayout_status != UNCHANGED )
+	{
+		config->sublayout = output->pending_layout_config.sublayout;
+		output->pending_layout_config.sublayout_status = UNCHANGED;
+	}
+
+	if ( output->pending_layout_config.main_count_status == NEW )
+	{
+		config->main_count = (uint32_t)output->pending_layout_config.main_count;
+		output->pending_layout_config.main_count_status = UNCHANGED;
+	}
+	else if ( output->pending_layout_config.main_count_status == MOD )
+	{
+		if ( (int32_t)config->main_count + output->pending_layout_config.main_count >= 0 )
+			config->main_count += (uint32_t)output->pending_layout_config.main_count;
+		output->pending_layout_config.main_count_status = UNCHANGED;
+	}
+
+	if ( output->pending_layout_config.inner_padding_status == NEW )
+	{
+		config->inner_padding = (uint32_t)output->pending_layout_config.inner_padding;
+		output->pending_layout_config.inner_padding_status = UNCHANGED;
+	}
+	else if ( output->pending_layout_config.inner_padding_status == MOD )
+	{
+		if ( (int32_t)config->inner_padding + output->pending_layout_config.inner_padding >= 0 )
+			config->inner_padding += (uint32_t)output->pending_layout_config.inner_padding;
+		output->pending_layout_config.inner_padding_status = UNCHANGED;
+	}
+
+	if ( output->pending_layout_config.outer_padding_status == NEW )
+	{
+		config->outer_padding = (uint32_t)output->pending_layout_config.outer_padding;
+		output->pending_layout_config.outer_padding_status = UNCHANGED;
+	}
+	else if ( output->pending_layout_config.outer_padding_status == MOD )
+	{
+		if ( (int32_t)config->outer_padding + output->pending_layout_config.outer_padding >= 0 )
+			config->outer_padding += (uint32_t)output->pending_layout_config.outer_padding;
+		output->pending_layout_config.outer_padding_status = UNCHANGED;
+	}
+
+	if ( output->pending_layout_config.main_factor_status == NEW )
+	{
+		config->main_factor = output->pending_layout_config.main_factor;
+		output->pending_layout_config.main_factor_status = UNCHANGED;
+	}
+	else if ( output->pending_layout_config.main_factor_status == MOD )
+	{
+		config->main_factor = CLAMP(config->main_factor + output->pending_layout_config.main_factor, 0.1, 0.9);
+		output->pending_layout_config.main_factor_status = UNCHANGED;
+	}
+
+	return config;
+}
+
 static void layout_handle_layout_demand (void *data, struct river_layout_v2 *river_layout_v2,
 		uint32_t view_count, uint32_t width, uint32_t height, uint32_t tags, uint32_t serial)
 {
 	struct Output *output = (struct Output *)data;
-	width -= 2 * output->outer_padding, height -= 2 * output->outer_padding;
+	struct Layout_config *config = get_layout_config(output, tags);
+
+	width -= 2 * config->outer_padding, height -= 2 * config->outer_padding;
 	uint32_t main_size, stack_size;
 
-	const uint32_t main_count = MIN(output->main_count, view_count);
+	const uint32_t main_count = MIN(config->main_count, view_count);
 	const uint32_t remainder_count = view_count - main_count;
 
 	if ( main_count == 0 ) /* No main, only stack. */
@@ -154,49 +292,49 @@ static void layout_handle_layout_demand (void *data, struct river_layout_v2 *riv
 	}
 	else /* Both main and stack. */
 	{
-		main_size  = (uint32_t)((double)width * output->main_factor) - (output->inner_padding / 2);
-		stack_size = width - (main_size + output->inner_padding);
+		main_size  = (uint32_t)((double)width * config->main_factor) - (config->inner_padding / 2);
+		stack_size = width - (main_size + config->inner_padding);
 	}
 
-	switch (output->sublayout)
+	switch (config->sublayout)
 	{
 		case COLUMNS:
 			sublayout_columns(river_layout_v2, serial,
-				output->outer_padding, output->outer_padding,
+				config->outer_padding, config->outer_padding,
 				main_size, height, main_count,
-				output->inner_padding);
+				config->inner_padding);
 			break;
 
 		case ROWS:
 			sublayout_rows(river_layout_v2, serial,
-				output->outer_padding, output->outer_padding,
+				config->outer_padding, config->outer_padding,
 				main_size, height, main_count,
-				output->inner_padding);
+				config->inner_padding);
 			break;
 
 		case STACK:
 			sublayout_stack(river_layout_v2, serial,
-				output->outer_padding, output->outer_padding,
+				config->outer_padding, config->outer_padding,
 				main_size, height, main_count);
 			break;
 	}
 
 	if ( remainder_count == 1 )
 		river_layout_v2_push_view_dimensions(river_layout_v2, serial,
-				(int32_t)(output->outer_padding + (main_size == 0 ? 0 : main_size + output->inner_padding)),
-				(int32_t)(output->outer_padding), stack_size, height);
+				(int32_t)(config->outer_padding + (main_size == 0 ? 0 : main_size + config->inner_padding)),
+				(int32_t)(config->outer_padding), stack_size, height);
 	else if ( remainder_count > 1 )
 	{
-		const uint32_t remainder_x = output->inner_padding + (main_size == 0 ? 0 : main_size + output->inner_padding);
-		const uint32_t top_size = (uint32_t)(0.6 * (double)(height - output->inner_padding));
-		const uint32_t bottom_size = (uint32_t)(0.4 * (double)(height - output->inner_padding));
+		const uint32_t remainder_x = config->inner_padding + (main_size == 0 ? 0 : main_size + config->inner_padding);
+		const uint32_t top_size = (uint32_t)(0.6 * (double)(height - config->inner_padding));
+		const uint32_t bottom_size = (uint32_t)(0.4 * (double)(height - config->inner_padding));
 
 		river_layout_v2_push_view_dimensions(river_layout_v2, serial,
-				(int32_t)remainder_x, (int32_t)(output->outer_padding),
+				(int32_t)remainder_x, (int32_t)(config->outer_padding),
 				stack_size, top_size);
 
 		sublayout_stack(river_layout_v2, serial,
-				remainder_x, output->outer_padding + top_size + output->inner_padding,
+				remainder_x, config->outer_padding + top_size + config->inner_padding,
 				stack_size, bottom_size, remainder_count - 1);
 	}
 
@@ -219,15 +357,27 @@ static void layout_handle_set_int_value (void *data, struct river_layout_v2 *riv
 		return;
 
 	if ( strcmp(name, "main_count") == 0 )
-		output->main_count = (uint32_t)value;
+	{
+		output->pending_layout_config.main_count = value;
+		output->pending_layout_config.main_count_status = NEW;
+	}
 	else if ( strcmp(name, "inner_padding") == 0 )
-		output->inner_padding = (uint32_t)value;
+	{
+		output->pending_layout_config.inner_padding = value;
+		output->pending_layout_config.inner_padding_status = NEW;
+	}
 	else if ( strcmp(name, "outer_padding") == 0 )
-		output->outer_padding = (uint32_t)value;
+	{
+		output->pending_layout_config.outer_padding = value;
+		output->pending_layout_config.outer_padding_status = NEW;
+	}
 	else if ( strcmp(name, "all_padding") == 0 )
 	{
-		output->inner_padding = (uint32_t)value;
-		output->outer_padding = (uint32_t)value;
+		output->pending_layout_config.inner_padding = value;
+		output->pending_layout_config.inner_padding_status = NEW;
+
+		output->pending_layout_config.outer_padding = value;
+		output->pending_layout_config.outer_padding_status = NEW;
 	}
 }
 
@@ -237,25 +387,26 @@ static void layout_handle_mod_int_value (void *data, struct river_layout_v2 *riv
 	struct Output *output = (struct Output *)data;
 	if ( strcmp(name, "main_count") == 0 )
 	{
-		if ( (int32_t)output->main_count + delta >= 0 )
-			output->main_count = output->main_count + (uint32_t)delta;
+		output->pending_layout_config.main_count = delta;
+		output->pending_layout_config.main_count_status = MOD;
 	}
 	else if ( strcmp(name, "inner_padding") == 0 )
 	{
-		if ( (int32_t)output->inner_padding + delta >= 0 )
-			output->inner_padding = output->inner_padding + (uint32_t)delta;
+		output->pending_layout_config.inner_padding = delta;
+		output->pending_layout_config.inner_padding_status = MOD;
 	}
 	else if ( strcmp(name, "outer_padding") == 0 )
 	{
-		if ( (int32_t)output->outer_padding + delta >= 0 )
-			output->outer_padding = output->outer_padding + (uint32_t)delta;
+		output->pending_layout_config.outer_padding = delta;
+		output->pending_layout_config.outer_padding_status = MOD;
 	}
 	else if ( strcmp(name, "all_padding") == 0 )
 	{
-		if ( (int32_t)output->inner_padding + delta >= 0 )
-			output->inner_padding = output->inner_padding + (uint32_t)delta;
-		if ( (int32_t)output->outer_padding + delta >= 0 )
-			output->outer_padding = output->outer_padding + (uint32_t)delta;
+		output->pending_layout_config.inner_padding = delta;
+		output->pending_layout_config.inner_padding_status = MOD;
+
+		output->pending_layout_config.outer_padding = delta;
+		output->pending_layout_config.outer_padding_status = MOD;
 	}
 }
 
@@ -264,7 +415,10 @@ static void layout_handle_set_fixed_value (void *data, struct river_layout_v2 *r
 {
 	struct Output *output = (struct Output *)data;
 	if ( strcmp(name, "main_factor") == 0 )
-		output->main_factor = CLAMP(wl_fixed_to_double(value), 0.1, 0.9);
+	{
+		output->pending_layout_config.main_factor = CLAMP(wl_fixed_to_double(value), 0.1, 0.9);
+		output->pending_layout_config.main_factor_status = NEW;
+	}
 }
 
 static void layout_handle_mod_fixed_value (void *data, struct river_layout_v2 *river_layout_v2,
@@ -272,7 +426,10 @@ static void layout_handle_mod_fixed_value (void *data, struct river_layout_v2 *r
 {
 	struct Output *output = (struct Output *)data;
 	if ( strcmp(name, "main_factor") == 0 )
-		output->main_factor = CLAMP(output->main_factor + wl_fixed_to_double(delta), 0.1, 0.9);
+	{
+		output->pending_layout_config.main_factor = wl_fixed_to_double(delta);
+		output->pending_layout_config.main_factor_status = MOD;
+	}
 }
 
 static bool sublayout_from_string (const char *str, enum Sublayout *sublayout)
@@ -293,7 +450,14 @@ static void layout_handle_set_string_value (void *data, struct river_layout_v2 *
 {
 	struct Output *output = (struct Output *)data;
 	if ( strcmp(name, "sublayout") == 0 )
-		sublayout_from_string(str, &output->sublayout);
+	{
+		if (! sublayout_from_string(str, &output->pending_layout_config.sublayout))
+		{
+			fprintf(stderr, "ERROR: Unknown sublayout: %s\n", str);
+			return;
+		}
+		output->pending_layout_config.sublayout_status = NEW;
+	}
 }
 
 static void noop () {}
@@ -331,11 +495,7 @@ static bool create_output (struct wl_output *wl_output)
 	output->layout     = NULL;
 	output->configured = false;
 
-	output->main_count    = default_main_count;
-	output->main_factor   = default_main_factor;
-	output->inner_padding = default_inner_padding;
-	output->outer_padding = default_outer_padding;
-	output->sublayout     = default_sublayout;
+	wl_list_init(&output->layout_configs);
 
 	if ( layout_manager != NULL )
 		configure_output(output);
@@ -346,6 +506,13 @@ static bool create_output (struct wl_output *wl_output)
 
 static void destroy_output (struct Output *output)
 {
+	struct Layout_config *config, *tmp;
+	wl_list_for_each_safe(config, tmp, &output->layout_configs, link)
+	{
+		wl_list_remove(&config->link);
+		free(config);
+	}
+
 	if ( output->layout != NULL )
 		river_layout_v2_destroy(output->layout);
 	wl_output_destroy(output->output);
@@ -490,7 +657,7 @@ int main (int argc, char *argv[])
 				fputs("ERROR: Inner padding may not be negative.\n", stderr);
 				return EXIT_FAILURE;
 			}
-			default_inner_padding = (uint32_t)tmp;
+			default_layout_config.inner_padding = (uint32_t)tmp;
 			break;
 
 		case OUTER_PADDING:
@@ -500,7 +667,7 @@ int main (int argc, char *argv[])
 				fputs("ERROR: Outer padding may not be negative.\n", stderr);
 				return EXIT_FAILURE;
 			}
-			default_outer_padding = (uint32_t)tmp;
+			default_layout_config.outer_padding = (uint32_t)tmp;
 			break;
 
 		case MAIN_COUNT:
@@ -510,15 +677,15 @@ int main (int argc, char *argv[])
 				fputs("ERROR: Main count may not be negative.\n", stderr);
 				return EXIT_FAILURE;
 			}
-			default_main_count = (uint32_t)tmp;
+			default_layout_config.main_count = (uint32_t)tmp;
 			break;
 
 		case MAIN_FACTOR:
-			default_main_factor = CLAMP(atof(optarg), 0.1, 0.9);
+			default_layout_config.main_factor = CLAMP(atof(optarg), 0.1, 0.9);
 			break;
 
 		case SUBLAYOUT:
-			if (!sublayout_from_string(optarg, &default_sublayout))
+			if (!sublayout_from_string(optarg, &default_layout_config.sublayout))
 			{
 				fputs("ERROR: Invalid sublayout.\n", stderr);
 				return EXIT_FAILURE;
