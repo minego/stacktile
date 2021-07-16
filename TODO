@@ -1,0 +1,9 @@
+TODO
+possibility to set main-count to `all`, so that all views are using the main-sublayout
+ -> or maybe a `all-views-in-main [true|false|toggle]` command
+
+
+bad coordinates when outer and inner padding do not match
+
+
+grid sublayout

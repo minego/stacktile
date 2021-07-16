@@ -6,8 +6,8 @@ MANDIR=$(PREFIX)/share/man
 
 CFLAGS=-Wall -Wextra -Wpedantic -Wno-unused-parameter -Wconversion -Wformat-security -Wformat -Wsign-conversion -Wfloat-conversion -Wunused-result
 LIBS=-lwayland-client
-OBJ=stacktile.o river-layout-v2.o
-GEN=river-layout-v2.h river-layout-v2.c
+OBJ=stacktile.o river-layout-v3.o
+GEN=river-layout-v3.h river-layout-v3.c
 
 stacktile: $(OBJ)
 	$(CC)$ $(LDFLAGS) -o $@ $(OBJ) $(LIBS)
