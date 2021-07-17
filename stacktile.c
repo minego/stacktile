@@ -7,6 +7,7 @@
 #include <string.h>
 #include <errno.h>
 #include <ctype.h>
+#include <math.h>
 
 #include<wayland-client.h>
 #include<wayland-client-protocol.h>
@@ -32,6 +33,7 @@ enum Sublayout
 	COLUMNS,
 	ROWS,
 	STACK,
+	GRID,
 };
 
 enum Layout_value_status
@@ -98,6 +100,44 @@ struct Layout_config default_layout_config = {
 	.outer_padding = 10,
 	.sublayout = ROWS
 };
+
+static void sublayout_grid (struct river_layout_v3 *river_layout_v3, uint32_t serial,
+		uint32_t x, uint32_t y, uint32_t _width, uint32_t _height, uint32_t amount,
+		uint32_t inner_padding)
+{
+	if ( amount == 0 )
+		return;
+	if ( amount == 1 )
+	{
+		river_layout_v3_push_view_dimensions(river_layout_v3,
+				(int32_t)x, (int32_t)y, _width, _height, serial);
+		return;
+	}
+
+	const uint32_t rows = (uint32_t)sqrt(amount);
+	const uint32_t columns = (uint32_t)ceil((float)amount / (float)rows);
+	const uint32_t width = ( _width - ((columns - 1) * inner_padding)) / columns;
+	const uint32_t height = ( _height - ((rows - 1) * inner_padding)) / rows;
+	const uint32_t x_offset = width + inner_padding;
+	const uint32_t y_offset = height + inner_padding;
+
+	uint32_t current_column = 0, current_row = 0;
+	for (uint32_t i = 0; i < amount; i++)
+	{
+		river_layout_v3_push_view_dimensions(river_layout_v3,
+				(int32_t)(x + (current_row * x_offset)),
+				(int32_t)(y + (current_column * y_offset)),
+				width, height, serial);
+
+		if ( current_row < columns - 1 )
+			current_row++;
+		else
+		{
+			current_row = 0;
+			current_column++;
+		}
+	}
+}
 
 static void sublayout_stack (struct river_layout_v3 *river_layout_v3, uint32_t serial,
 		uint32_t x, uint32_t y, uint32_t _width, uint32_t _height, uint32_t amount)
@@ -318,6 +358,13 @@ static void layout_handle_layout_demand (void *data, struct river_layout_v3 *riv
 				config->outer_padding, config->outer_padding,
 				main_size, height, main_count);
 			break;
+
+		case GRID:
+			sublayout_grid(river_layout_v3, serial,
+				config->outer_padding, config->outer_padding,
+				main_size, height, main_count,
+				config->inner_padding);
+			break;
 	}
 
 	if ( remainder_count == 1 )
@@ -427,6 +474,8 @@ static bool sublayout_from_string (const char *str, enum Sublayout *sublayout)
 		*sublayout = ROWS;
 	else if (word_comp(str, "stack"))
 		*sublayout = STACK;
+	else if (word_comp(str, "grid"))
+		*sublayout = GRID;
 	else
 		return false;
 	return true;
