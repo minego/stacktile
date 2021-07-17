@@ -1,95 +1,145 @@
-.TH stacktile 1 2021-03-14 stacktile-1.0.1
-
+.TH STACKTILE 1 2021-07-17 "git.sr.ht/~leon_plickat/stacktile" "General Commands Manual"
+.
 .SH NAME
-stacktile - a layout generator for the river Wayland compositor
-
+.P
+stacktile \- a layout generator for the river Wayland compositor
+.
+.
 .SH DESCRIPTION
-stacktile is a layout generator for river. The screen is devided into two areas,
-the main area and the remainder area.
+.P
+stacktile is a layout generator for river.
+It devides the screen into two areas, the main area and the remainder area.
 .P
 The main area is positioned on the left side of the screen and consist of a
-configurable amount of windows from the top of the list. Windows in the main
-area are arranged into a configurable sublayout.
+configurable amount of windows from the top of the list.
+Windows in the main area are arranged into a configurable sublayout.
 .P
-The remainder area is on the right side of the screen. All windows not in the
-main area will be placed here. If it features more than three windows, all but
-the first will be arranged into a stack, like a deck of cards, to save space.
+The remainder area is on the right side of the screen.
+All windows not in the main area will be placed here.
+If it features more than three windows, all but the first will be arranged into
+a stack, like a deck of cards, to save space.
 .P
 If layout values are changed, the change only applies to the currently focused
-tag set. Each tag set has individual layout values.
-
+tag set.
+Each tag set has individual layout values.
+.
+.
 .SH OPTIONS
-\fB--main-count\fR (int)
-.RS 4
-The default amount of windows in the main area.
 .P
+\fB--main-count\fR \fIvalue\fR
+.RS
+Set the default amount of windows in the main area.
+\fIvalue\fR must be a non-negative integer.
 .RE
-
-\fB--main-factor\fR (fixed: [0.1, 0.9])
-.RS 4
-The default relative size of the main area.
+.
 .P
+\fB--main-factor\fR \fIvalue\fR
+.RS
+Set the default relative size of the main area.
+\fIvalue\fR must be a floating point number between 0.1 and 0.9.
 .RE
-
-\fB--inner-padding\fR (int)
-.RS 4
-The default padding between windows.
+.
 .P
+\fB --inner-padding\fR \fIvalue\fR
+.RS
+Set the default padding between windows.
+\fIvalue\fR must be a non-negative integer.
 .RE
-
-\fB--outer-padding\fR (int)
-.RS 4
-The default padding around the layout.
+.
 .P
+\fB--outer-padding\fR \fIvalue\fR
+.RS
+Set the default padding around the layout.
+\fIvalue\fR must be a non-negative integer.
 .RE
-
-\fB--sublayout\fR [columns|rows|stack]
-.RS 4
-The default sublayout of the main area.
+.
 .P
+\fB--sublayout\fR \fBcolumns\fR|\fBrows\fR|\fBstack\fR|\fBgrid\fR
+.RS
+Set the default sublayout of the main area.
 .RE
-
-.SH VALUES
-\fBmain_count\fR (int)
-.RS 4
-The amount of windows in the main area.
+.
+.
+.SH COMMANDS
 .P
-.RE
-
-\fBmain_factor\fR (fixed: [0.1, 0.9])
-.RS 4
-The relative size of the main area.
+These commands may be send to stacktile at runtime with the help of
+\fBriverctl\fR(1).
+.
 .P
+\fBmain_count\fR \fIvalue\fR
+.RS
+Set or modify the amount of windows in the main area.
+\fIvalue\fR must be an integer.
+If \fIvalue\fR is prefixed by a + or \- sign, it is added or subtracted from the
+current main count.
+Otherwise main count will be set to \fIvalue\fR.
+The main count may not be negative.
 .RE
-
-\fBinner_padding\fR (int)
-.RS 4
-The padding between windows.
+.
 .P
+\fBmain_ratio\fR \fIvalue\fR
+.RS
+Set or modify the relative size of the main area.
+\fIvalue\fR must be a floating point number.
+If \fIvalue\fR is prefixed by a + or \- sign, it is added or subtracted from the
+current main ratio.
+Otherwise main ratio will be set to \fIvalue\fR.
+The main ration is clamped to the range of 0.1\(en0.9.
 .RE
-
-\fBouter_padding\fR (int)
-.RS 4
-The padding around the layout.
+.
 .P
+\fBinner_padding\fR \fIvalue\fR
+.RS
+Set or modify the padding between windows.
+\fIvalue\fR must be an integer.
+If \fIvalue\fR is prefixed by a + or \- sign, it is added or subtracted from the
+current inner padding.
+Otherwise inner padding will be set to \fIvalue\fR.
+The inner padding may not be negative.
 .RE
-
-\fBall_padding\fR (int)
-.RS 4
-This value changes both the inner and outer padding if set or modified.
+.
 .P
+\fBouter_padding\fR \fIvalue\fR
+.RS
+Set or modify around the layout.
+\fIvalue\fR must be an integer.
+If \fIvalue\fR is prefixed by a + or \- sign, it is added or subtracted from the
+current outer padding.
+Otherwise outer padding will be set to \fIvalue\fR.
+The outer padding may not be negative.
 .RE
-
-\fBsublayout\fR [columns|rows|stack]
-.RS 4
-The sublayout of the main area.
+.
 .P
+\fBall_padding\fR \fIvalue\fR
+.RS
+Set or modify both the inner and outer padding.
+\fIvalue\fR must be an integer.
+If \fIvalue\fR is prefixed by a + or \- sign, it is added or subtracted from the
+current inner and outer padding.
+Otherwise the inner and outer padding will be set to \fIvalue\fR.
+Padding may not be negative.
 .RE
-
+.
+.P
+\fBsublayout\fR \fBcolumns\fR|\fBrows\fR|\fBstack\fR|\fBgrid\fR
+.RS
+Set the sublayout of the main area.
+.RE
+.
+.P
+\fBreset\fR
+.RS
+Delete the modified layout variables for all tag sets, returning to the defaults.
+.RE
+.
+.
 .SH AUTHOR
-Leon Henrik Plickat
-
-.SH SEE ALSO
 .P
-\fBriver\fR(1), \fBriverctl\fR(1), \fBrivertile\fR(1)
-
+.MT leonhenrik.plickat@stud.uni-goettingen.de
+Leon Henrik Plickat
+.ME
+.
+.
+.SH SEE ALSO
+.BR river (1)
+.BR riverctl (1)
