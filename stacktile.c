@@ -21,12 +21,18 @@
 
 const char usage[] =
 	"Usage: stacktile [options...]\n"
-	"   --inner-padding  <int>\n"
-	"   --outer-padding  <int>\n"
-	"   --main-count     <int>\n"
-	"   --main-factor    <float>\n"
-	"   --sublayout      rows|columns|stack\n"
+	"   --inner-padding    <int>\n"
+	"   --outer-padding    <int>\n"
+	"   --primary-count    <int>\n"
+	"   --primary-ratio    <float>\n"
+	"   --sublayout        rows|columns|stack\n"
 	"\n";
+
+enum Orientation
+{
+	VERTICAL,
+	HORIZONTAL,
+};
 
 enum Sublayout
 {
@@ -48,12 +54,12 @@ struct Layout_config
 	struct wl_list link;
 	uint32_t tags;
 
-	uint32_t main_count;
-	double main_ratio;
+	uint32_t primary_count;
+	double primary_ratio;
 	uint32_t inner_padding;
 	uint32_t outer_padding;
 	enum Sublayout sublayout;
-	bool all_main;
+	bool all_primary;
 };
 
 struct Output
@@ -67,11 +73,11 @@ struct Output
 
 	struct
 	{
-		enum Layout_value_status main_count_status;
-		int32_t main_count;
+		enum Layout_value_status primary_count_status;
+		int32_t primary_count;
 
-		enum Layout_value_status main_ratio_status;
-		double main_ratio;
+		enum Layout_value_status primary_ratio_status;
+		double primary_ratio;
 
 		enum Layout_value_status inner_padding_status;
 		int32_t inner_padding;
@@ -82,8 +88,8 @@ struct Output
 		enum Layout_value_status sublayout_status;
 		enum Sublayout sublayout;
 
-		enum Layout_value_status all_main_status;
-		bool all_main;
+		enum Layout_value_status all_primary_status;
+		bool all_primary;
 	} pending_layout_config;
 
 	bool configured;
@@ -98,27 +104,18 @@ bool loop = true;
 int ret = EXIT_FAILURE;
 
 struct Layout_config default_layout_config = {
-	.main_count = 1,
-	.main_ratio = 0.6,
+	.primary_count = 1,
+	.primary_ratio = 0.6,
 	.inner_padding = 10,
 	.outer_padding = 10,
 	.sublayout = ROWS,
-	.all_main = false,
+	.all_primary = false,
 };
 
 static void sublayout_grid (struct river_layout_v3 *river_layout_v3, uint32_t serial,
 		uint32_t x, uint32_t y, uint32_t _width, uint32_t _height, uint32_t amount,
 		uint32_t inner_padding)
 {
-	if ( amount == 0 )
-		return;
-	if ( amount == 1 )
-	{
-		river_layout_v3_push_view_dimensions(river_layout_v3,
-				(int32_t)x, (int32_t)y, _width, _height, serial);
-		return;
-	}
-
 	const uint32_t rows = (uint32_t)sqrt(amount);
 	const uint32_t columns = (uint32_t)ceil((float)amount / (float)rows);
 	const uint32_t width = ( _width - ((columns - 1) * inner_padding)) / columns;
@@ -147,15 +144,6 @@ static void sublayout_grid (struct river_layout_v3 *river_layout_v3, uint32_t se
 static void sublayout_stack (struct river_layout_v3 *river_layout_v3, uint32_t serial,
 		uint32_t x, uint32_t y, uint32_t _width, uint32_t _height, uint32_t amount)
 {
-	if ( amount == 0 )
-		return;
-	if ( amount == 1 )
-	{
-		river_layout_v3_push_view_dimensions(river_layout_v3,
-				(int32_t)x, (int32_t)y, _width, _height, serial);
-		return;
-	}
-
 	const uint32_t width = (uint32_t)(0.95 * (double)_width);
 	const uint32_t height = (uint32_t)(0.95 * (double)_height);
 	const uint32_t x_offset = (uint32_t)(0.05 * (double)_width) / (amount - 1);
@@ -172,15 +160,6 @@ static void sublayout_columns (struct river_layout_v3 *river_layout_v3, uint32_t
 		uint32_t x, uint32_t y, uint32_t _width, uint32_t _height, uint32_t amount,
 		uint32_t inner_padding)
 {
-	if ( amount == 0 )
-		return;
-	if ( amount == 1 )
-	{
-		river_layout_v3_push_view_dimensions(river_layout_v3,
-				(int32_t)x, (int32_t)y, _width, _height, serial);
-		return;
-	}
-
 	const uint32_t width = (_width - ((amount - 1) * inner_padding)) / amount;
 	const uint32_t height = _height;
 
@@ -195,23 +174,67 @@ static void sublayout_rows (struct river_layout_v3 *river_layout_v3, uint32_t se
 		uint32_t x, uint32_t y, uint32_t _width, uint32_t _height, uint32_t amount,
 		uint32_t inner_padding)
 {
-	if ( amount == 0 )
-		return;
-	if ( amount == 1 )
-	{
-		river_layout_v3_push_view_dimensions(river_layout_v3,
-				(int32_t)x, (int32_t)y, _width, _height, serial);
-		return;
-	}
-
 	const uint32_t width = _width;
 	const uint32_t height = (_height - ((amount - 1) * inner_padding)) / amount;
 
 	for (uint32_t i = 0; i < amount; i++)
 		river_layout_v3_push_view_dimensions(river_layout_v3,
-				(int32_t)y,
+				(int32_t)x,
 				(int32_t)(y + (i * height + (i * inner_padding))),
 				width, height, serial);
+}
+
+static void do_sublayout (struct river_layout_v3 *river_layout_v3, uint32_t serial,
+		uint32_t x, uint32_t y, uint32_t width, uint32_t height, uint32_t count,
+		uint32_t inner_padding, enum Sublayout sublayout)
+{
+	if ( count == 0 )
+		return;
+
+	if ( count  == 1 )
+	{
+		river_layout_v3_push_view_dimensions(river_layout_v3,
+				(int32_t)x, (int32_t)y, width, height, serial);
+		return;
+	}
+
+	switch (sublayout)
+	{
+		case COLUMNS: sublayout_columns(river_layout_v3, serial, x, y, width, height, count, inner_padding); break;
+		case ROWS:       sublayout_rows(river_layout_v3, serial, x, y, width, height, count, inner_padding); break;
+		case STACK:     sublayout_stack(river_layout_v3, serial, x, y, width, height, count); break;
+		case GRID:       sublayout_grid(river_layout_v3, serial, x, y, width, height, count, inner_padding); break;
+	}
+}
+
+/** Split an area into two, based on a ratio. The new area will be to the left
+ * of or above the other area. The input coordinates will be shrunk accordingly.
+ */
+static void split_off_area (uint32_t *a_x, uint32_t *a_y, uint32_t *a_width, uint32_t *a_height,
+		uint32_t *b_x, uint32_t *b_y, uint32_t *b_width, uint32_t *b_height,
+		uint32_t inner_padding, double ratio, enum Orientation orientation)
+{
+	/* Behold: ratio is expected to be reasonable, meaning between 0.1 and 0.9. */
+	if ( orientation == HORIZONTAL )
+	{
+		*b_x      = *a_x;
+		*b_y      = *a_y;
+		*b_width  = (uint32_t)((double)*a_width * ratio) - (inner_padding / 2);
+		*b_height = *a_height;
+
+		*a_x     += *b_width + inner_padding;
+		*a_width -= *b_width + inner_padding;
+	}
+	else
+	{
+		*b_x      = *a_x;
+		*b_y      = *a_y;
+		*b_width  = *a_width;
+		*b_height = (uint32_t)((double)*a_height * ratio) - (inner_padding / 2);
+
+		*a_y      += *b_height + inner_padding;
+		*a_height -= *b_height + inner_padding;
+	}
 }
 
 /**
@@ -235,12 +258,12 @@ static struct Layout_config *get_layout_config (struct Output *output, uint32_t 
 		/* No config has been found. If there are pending changes, we
 		 * need to create a new one based on the default config.
 		 */
-		if ( output->pending_layout_config.main_count_status != UNCHANGED
-				|| output->pending_layout_config.main_ratio_status != UNCHANGED
+		if ( output->pending_layout_config.primary_count_status != UNCHANGED
+				|| output->pending_layout_config.primary_ratio_status != UNCHANGED
 				|| output->pending_layout_config.inner_padding_status != UNCHANGED
 				|| output->pending_layout_config.outer_padding_status != UNCHANGED
 				|| output->pending_layout_config.sublayout_status != UNCHANGED
-				|| output->pending_layout_config.all_main_status != UNCHANGED )
+				|| output->pending_layout_config.all_primary_status != UNCHANGED )
 		{
 			config = calloc(1, sizeof(struct Layout_config));
 			if ( config == NULL )
@@ -265,16 +288,16 @@ static struct Layout_config *get_layout_config (struct Output *output, uint32_t 
 		output->pending_layout_config.sublayout_status = UNCHANGED;
 	}
 
-	if ( output->pending_layout_config.main_count_status == NEW )
+	if ( output->pending_layout_config.primary_count_status == NEW )
 	{
-		config->main_count = (uint32_t)output->pending_layout_config.main_count;
-		output->pending_layout_config.main_count_status = UNCHANGED;
+		config->primary_count = (uint32_t)output->pending_layout_config.primary_count;
+		output->pending_layout_config.primary_count_status = UNCHANGED;
 	}
-	else if ( output->pending_layout_config.main_count_status == MOD )
+	else if ( output->pending_layout_config.primary_count_status == MOD )
 	{
-		if ( (int32_t)config->main_count + output->pending_layout_config.main_count >= 0 )
-			config->main_count += (uint32_t)output->pending_layout_config.main_count;
-		output->pending_layout_config.main_count_status = UNCHANGED;
+		if ( (int32_t)config->primary_count + output->pending_layout_config.primary_count >= 0 )
+			config->primary_count += (uint32_t)output->pending_layout_config.primary_count;
+		output->pending_layout_config.primary_count_status = UNCHANGED;
 	}
 
 	if ( output->pending_layout_config.inner_padding_status == NEW )
@@ -301,109 +324,92 @@ static struct Layout_config *get_layout_config (struct Output *output, uint32_t 
 		output->pending_layout_config.outer_padding_status = UNCHANGED;
 	}
 
-	if ( output->pending_layout_config.main_ratio_status == NEW )
+	if ( output->pending_layout_config.primary_ratio_status == NEW )
 	{
-		config->main_ratio = CLAMP(output->pending_layout_config.main_ratio, 0.1, 0.9);
-		output->pending_layout_config.main_ratio_status = UNCHANGED;
+		config->primary_ratio = CLAMP(output->pending_layout_config.primary_ratio, 0.1, 0.9);
+		output->pending_layout_config.primary_ratio_status = UNCHANGED;
 	}
-	else if ( output->pending_layout_config.main_ratio_status == MOD )
+	else if ( output->pending_layout_config.primary_ratio_status == MOD )
 	{
-		config->main_ratio = CLAMP(config->main_ratio + output->pending_layout_config.main_ratio, 0.1, 0.9);
-		output->pending_layout_config.main_ratio_status = UNCHANGED;
+		config->primary_ratio = CLAMP(config->primary_ratio + output->pending_layout_config.primary_ratio, 0.1, 0.9);
+		output->pending_layout_config.primary_ratio_status = UNCHANGED;
 	}
 
-	if ( output->pending_layout_config.all_main_status == NEW )
+	if ( output->pending_layout_config.all_primary_status == NEW )
 	{
-		config->all_main = output->pending_layout_config.all_main;
-		output->pending_layout_config.all_main_status = UNCHANGED;
+		config->all_primary = output->pending_layout_config.all_primary;
+		output->pending_layout_config.all_primary_status = UNCHANGED;
 	}
-	else if ( output->pending_layout_config.all_main_status == MOD )
+	else if ( output->pending_layout_config.all_primary_status == MOD )
 	{
-		config->all_main = !config->all_main;
-		output->pending_layout_config.all_main_status = UNCHANGED;
+		config->all_primary = !config->all_primary;
+		output->pending_layout_config.all_primary_status = UNCHANGED;
 	}
 
 	return config;
 }
 
 static void layout_handle_layout_demand (void *data, struct river_layout_v3 *river_layout_v3,
-		uint32_t view_count, uint32_t width, uint32_t height, uint32_t tags, uint32_t serial)
+		uint32_t view_count, uint32_t _width, uint32_t _height, uint32_t tags, uint32_t serial)
 {
+	// TODO make configurable
+	const uint32_t secondary_count = 1;
+	const double secondary_ratio = 0.6;
+	const enum Sublayout secondary_sublayout = ROWS;
+	const enum Sublayout remainder_sublayout = STACK;
+
 	struct Output *output = (struct Output *)data;
 	struct Layout_config *config = get_layout_config(output, tags);
 
-	width -= 2 * config->outer_padding, height -= 2 * config->outer_padding;
-	uint32_t main_size, stack_size;
+	uint32_t width  = _width - (2 * config->outer_padding);
+	uint32_t height = _height - (2 * config->outer_padding);
+	uint32_t x      = config->inner_padding;
+	uint32_t y      = config->inner_padding;
 
-	const uint32_t main_count = config->all_main ? view_count :  MIN(config->main_count, view_count);
-	const uint32_t remainder_count = view_count - main_count;
-
-	if ( main_count == 0 ) /* No main, only stack. */
+	/* Primary. */
+	if ( config->primary_count >= view_count || config->all_primary )
 	{
-		main_size  = 0;
-		stack_size = width;
+		do_sublayout(river_layout_v3, serial, x, y, width, height,
+				view_count, config->inner_padding, config->sublayout);
+		goto commit;
 	}
-	else if ( view_count <= main_count ) /* No stack, only main. */
+	else if ( config->primary_count != 0 )
 	{
-		main_size  = width;
-		stack_size = 0;
-	}
-	else /* Both main and stack. */
-	{
-		main_size  = (uint32_t)((double)width * config->main_ratio) - (config->inner_padding / 2);
-		stack_size = width - (main_size + config->inner_padding);
-	}
-
-	switch (config->sublayout)
-	{
-		case COLUMNS:
-			sublayout_columns(river_layout_v3, serial,
-				config->outer_padding, config->outer_padding,
-				main_size, height, main_count,
-				config->inner_padding);
-			break;
-
-		case ROWS:
-			sublayout_rows(river_layout_v3, serial,
-				config->outer_padding, config->outer_padding,
-				main_size, height, main_count,
-				config->inner_padding);
-			break;
-
-		case STACK:
-			sublayout_stack(river_layout_v3, serial,
-				config->outer_padding, config->outer_padding,
-				main_size, height, main_count);
-			break;
-
-		case GRID:
-			sublayout_grid(river_layout_v3, serial,
-				config->outer_padding, config->outer_padding,
-				main_size, height, main_count,
-				config->inner_padding);
-			break;
+		uint32_t primary_x, primary_y, primary_width, primary_height;
+		split_off_area(&x, &y, &width, &height,
+				&primary_x, &primary_y, &primary_width, &primary_height,
+				config->inner_padding, config->primary_ratio, HORIZONTAL);
+		do_sublayout(river_layout_v3, serial,
+				primary_x, primary_y, primary_width, primary_height,
+				config->primary_count, config->inner_padding, config->sublayout);
 	}
 
-	if ( remainder_count == 1 )
-		river_layout_v3_push_view_dimensions(river_layout_v3,
-				(int32_t)(config->outer_padding + (main_size == 0 ? 0 : main_size + config->inner_padding)),
-				(int32_t)(config->outer_padding), stack_size, height,
-				serial);
-	else if ( remainder_count > 1 )
+	/* Secondary. */
+	if ( secondary_count >= view_count - config->primary_count )
 	{
-		const uint32_t remainder_x = config->outer_padding + (main_size == 0 ? 0 : main_size + config->inner_padding);
-		const uint32_t top_size = (uint32_t)(0.6 * (double)(height - config->inner_padding));
-		const uint32_t bottom_size = (uint32_t)(0.4 * (double)(height - config->inner_padding));
-
-		river_layout_v3_push_view_dimensions(river_layout_v3,
-				(int32_t)remainder_x, (int32_t)(config->outer_padding),
-				stack_size, top_size, serial);
-
-		sublayout_stack(river_layout_v3, serial,
-				remainder_x, config->outer_padding + top_size + config->inner_padding,
-				stack_size, bottom_size, remainder_count - 1);
+		do_sublayout(river_layout_v3, serial, x, y, width, height,
+				view_count - config->primary_count,
+				config->inner_padding, secondary_sublayout);
+		goto commit;
+	}
+	else if ( secondary_count != 0 )
+	{
+		uint32_t secondary_x, secondary_y, secondary_width, secondary_height;
+		split_off_area(&x, &y, &width, &height,
+				&secondary_x, &secondary_y, &secondary_width, &secondary_height,
+				config->inner_padding, secondary_ratio, VERTICAL);
+		do_sublayout(river_layout_v3, serial,
+				secondary_x, secondary_y, secondary_width, secondary_height,
+				secondary_count, config->inner_padding, secondary_sublayout);
 	}
 
+	/* Remainder. */
+	const uint32_t remainder_count = view_count - (config->primary_count + secondary_count);
+	if ( remainder_count > 0 )
+		do_sublayout(river_layout_v3, serial, x, y, width, height, remainder_count,
+				config->inner_padding, remainder_sublayout);
+
+commit:
 	// TODO useful layout name
 	river_layout_v3_commit(output->layout, "stacktile", serial);
 }
@@ -509,13 +515,13 @@ static void layout_handle_user_command (void *data, struct river_layout_v3 *rive
 	if (! skip_whitespace(&command))
 		return;
 
-	if (word_comp(command, "main_count"))
+	if (word_comp(command, "primary_count"))
 	{
-		const char *second_word = get_second_word(&command, "main_count");
+		const char *second_word = get_second_word(&command, "primary_count");
 		if ( second_word == NULL )
 			return;
-		output->pending_layout_config.main_count = atoi(second_word);
-		output->pending_layout_config.main_count_status = layout_value_status_from_word(second_word);
+		output->pending_layout_config.primary_count = atoi(second_word);
+		output->pending_layout_config.primary_count_status = layout_value_status_from_word(second_word);
 	}
 	else if (word_comp(command, "inner_padding"))
 	{
@@ -545,13 +551,13 @@ static void layout_handle_user_command (void *data, struct river_layout_v3 *rive
 		output->pending_layout_config.inner_padding = arg;
 		output->pending_layout_config.inner_padding_status = status;
 	}
-	else if (word_comp(command, "main_ratio"))
+	else if (word_comp(command, "primary_ratio"))
 	{
-		const char *second_word = get_second_word(&command, "main_ratio");
+		const char *second_word = get_second_word(&command, "primary_ratio");
 		if ( second_word == NULL )
 			return;
-		output->pending_layout_config.main_ratio = atof(second_word);
-		output->pending_layout_config.main_ratio_status = layout_value_status_from_word(second_word);
+		output->pending_layout_config.primary_ratio = atof(second_word);
+		output->pending_layout_config.primary_ratio_status = layout_value_status_from_word(second_word);
 	}
 	else if (word_comp(command, "sublayout"))
 	{
@@ -565,23 +571,23 @@ static void layout_handle_user_command (void *data, struct river_layout_v3 *rive
 		}
 		output->pending_layout_config.sublayout_status = NEW;
 	}
-	else if (word_comp(command, "all_main"))
+	else if (word_comp(command, "all_primary"))
 	{
 		const char *second_word = get_second_word(&command, "sublayout");
 		if ( second_word == NULL )
 			return;
 		if (word_comp(second_word, "true"))
 		{
-			output->pending_layout_config.all_main = true;
-			output->pending_layout_config.all_main_status = NEW;
+			output->pending_layout_config.all_primary = true;
+			output->pending_layout_config.all_primary_status = NEW;
 		}
 		else if (word_comp(second_word, "false"))
 		{
-			output->pending_layout_config.all_main = false;
-			output->pending_layout_config.all_main_status = NEW;
+			output->pending_layout_config.all_primary = false;
+			output->pending_layout_config.all_primary_status = NEW;
 		}
 		else if (word_comp(second_word, "toggle"))
-			output->pending_layout_config.all_main_status = MOD;
+			output->pending_layout_config.all_primary_status = MOD;
 		else
 			fprintf(stderr, "ERROR: Invalid argument: %s\n", command);
 	}
@@ -766,18 +772,18 @@ int main (int argc, char *argv[])
 	{
 		INNER_PADDING,
 		OUTER_PADDING,
-		MAIN_FACTOR,
-		MAIN_COUNT,
+		PRIMARY_FACTOR,
+		PRIMARY_COUNT,
 		SUBLAYOUT,
 	};
 
 	const struct option opts[] = {
-		{ "help",          no_argument,       NULL, 'h'           },
-		{ "inner-padding", no_argument,       NULL, INNER_PADDING },
-		{ "outer-padding", required_argument, NULL, OUTER_PADDING },
-		{ "main-factor",   required_argument, NULL, MAIN_FACTOR   },
-		{ "main-count",    required_argument, NULL, MAIN_COUNT    },
-		{ "sublayout",     required_argument, NULL, SUBLAYOUT     },
+		{ "help",           no_argument,       NULL, 'h'            },
+		{ "inner-padding",  no_argument,       NULL, INNER_PADDING  },
+		{ "outer-padding",  required_argument, NULL, OUTER_PADDING  },
+		{ "primary-ratio",  required_argument, NULL, PRIMARY_FACTOR },
+		{ "main-count",     required_argument, NULL, PRIMARY_COUNT  },
+		{ "sublayout",      required_argument, NULL, SUBLAYOUT      },
 	};
 
 	int opt;
@@ -808,18 +814,18 @@ int main (int argc, char *argv[])
 			default_layout_config.outer_padding = (uint32_t)tmp;
 			break;
 
-		case MAIN_COUNT:
+		case PRIMARY_COUNT:
 			tmp = atoi(optarg);
 			if ( tmp < 0 )
 			{
 				fputs("ERROR: Main count may not be negative.\n", stderr);
 				return EXIT_FAILURE;
 			}
-			default_layout_config.main_count = (uint32_t)tmp;
+			default_layout_config.primary_count = (uint32_t)tmp;
 			break;
 
-		case MAIN_FACTOR:
-			default_layout_config.main_ratio = CLAMP(atof(optarg), 0.1, 0.9);
+		case PRIMARY_FACTOR:
+			default_layout_config.primary_ratio = CLAMP(atof(optarg), 0.1, 0.9);
 			break;
 
 		case SUBLAYOUT:
@@ -834,7 +840,6 @@ int main (int argc, char *argv[])
 			return EXIT_FAILURE;
 
 	}
-
 
 	if (init_wayland())
 	{

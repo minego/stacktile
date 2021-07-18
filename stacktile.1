@@ -8,14 +8,14 @@ stacktile \- a layout generator for the river Wayland compositor
 .SH DESCRIPTION
 .P
 stacktile is a layout generator for river.
-It devides the screen into two areas, the main area and the remainder area.
+It devides the screen into two areas, the primary area and the remainder area.
 .P
-The main area is positioned on the left side of the screen and consist of a
+The primary area is positioned on the left side of the screen and consist of a
 configurable amount of windows from the top of the list.
-Windows in the main area are arranged into a configurable sublayout.
+Windows in the primary area are arranged into a configurable sublayout.
 .P
 The remainder area is on the right side of the screen.
-All windows not in the main area will be placed here.
+All windows not in the primary area will be placed here.
 If it features more than three windows, all but the first will be arranged into
 a stack, like a deck of cards, to save space.
 .P
@@ -26,16 +26,16 @@ Each tag set has individual layout values.
 .
 .SH OPTIONS
 .P
-\fB--main-count\fR \fIvalue\fR
+\fB--primary-count\fR \fIvalue\fR
 .RS
-Set the default amount of windows in the main area.
+Set the default amount of windows in the primary area.
 \fIvalue\fR must be a non-negative integer.
 .RE
 .
 .P
-\fB--main-factor\fR \fIvalue\fR
+\fB--primary-ratio\fR \fIvalue\fR
 .RS
-Set the default relative size of the main area.
+Set the default relative size of the primary area.
 \fIvalue\fR must be a floating point number between 0.1 and 0.9.
 .RE
 .
@@ -56,7 +56,7 @@ Set the default padding around the layout.
 .P
 \fB--sublayout\fR \fBcolumns\fR|\fBrows\fR|\fBstack\fR|\fBgrid\fR
 .RS
-Set the default sublayout of the main area.
+Set the default sublayout of the primary area.
 .RE
 .
 .
@@ -66,25 +66,25 @@ These commands may be send to stacktile at runtime with the help of
 \fBriverctl\fR(1).
 .
 .P
-\fBmain_count\fR \fIvalue\fR
+\fBprimary_count\fR \fIvalue\fR
 .RS
-Set or modify the amount of windows in the main area.
+Set or modify the amount of windows in the primary area.
 \fIvalue\fR must be an integer.
 If \fIvalue\fR is prefixed by a + or \- sign, it is added or subtracted from the
-current main count.
-Otherwise main count will be set to \fIvalue\fR.
-The main count may not be negative.
+current primary count.
+Otherwise primary count will be set to \fIvalue\fR.
+The primary count may not be negative.
 .RE
 .
 .P
-\fBmain_ratio\fR \fIvalue\fR
+\fBprimary_ratio\fR \fIvalue\fR
 .RS
-Set or modify the relative size of the main area.
+Set or modify the relative size of the primary area.
 \fIvalue\fR must be a floating point number.
 If \fIvalue\fR is prefixed by a + or \- sign, it is added or subtracted from the
-current main ratio.
-Otherwise main ratio will be set to \fIvalue\fR.
-The main ration is clamped to the range of 0.1\(en0.9.
+current primary ratio.
+Otherwise primary ratio will be set to \fIvalue\fR.
+The primary ration is clamped to the range of 0.1\(en0.9.
 .RE
 .
 .P
@@ -123,13 +123,13 @@ Padding may not be negative.
 .P
 \fBsublayout\fR \fBcolumns\fR|\fBrows\fR|\fBstack\fR|\fBgrid\fR
 .RS
-Set the sublayout of the main area.
+Set the sublayout of the primary area.
 .RE
 .
 .P
-\fBall_main\fR \fBtrue\fR|\fBfalse\fR|\fBtoggle\fR
+\fBall_primary\fR \fBtrue\fR|\fBfalse\fR|\fBtoggle\fR
 .RS
-If this option is active, all windows will be placed in the main area.
+If this option is active, all windows will be placed in the primary area.
 .RE
 .
 .P
