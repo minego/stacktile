@@ -8,16 +8,15 @@ stacktile \- a layout generator for the river Wayland compositor
 .SH DESCRIPTION
 .P
 stacktile is a layout generator for river.
-It devides the screen into two areas, the primary area and the remainder area.
 .P
-The primary area is positioned on the left side of the screen and consist of a
-configurable amount of windows from the top of the list.
-Windows in the primary area are arranged into a configurable sublayout.
+It devides the screen into three areas, the primary area (left side of the
+screen), the secondary area (top of the right side of the screen) and the
+remainder area (bottom of the right side of screen).
+The windows in these areas are arranged into a configurable sublayout.
 .P
-The remainder area is on the right side of the screen.
-All windows not in the primary area will be placed here.
-If it features more than three windows, all but the first will be arranged into
-a stack, like a deck of cards, to save space.
+The primary and secondary areas are populated by a configurable amount of
+windows from the top of the window stack.
+All remaining windows will be placed in the remainder area.
 .P
 If layout values are changed, the change only applies to the currently focused
 tag set.
@@ -35,8 +34,40 @@ Set the default amount of windows in the primary area.
 .P
 \fB--primary-ratio\fR \fIvalue\fR
 .RS
-Set the default relative size of the primary area.
+Set the default relative width of the primary area.
 \fIvalue\fR must be a floating point number between 0.1 and 0.9.
+.RE
+.
+.P
+\fB--primary-sublayout\fR \fBcolumns\fR|\fBrows\fR|\fBstack\fR|\fBgrid\fR
+.RS
+Set the default sublayout of the primary area.
+.RE
+.
+.P
+\fB--secondary-count\fR \fIvalue\fR
+.RS
+Set the default amount of windows in the secondary area.
+\fIvalue\fR must be a non-negative integer.
+.RE
+.
+.P
+\fB--secondary-ratio\fR \fIvalue\fR
+.RS
+Set the default relative height of the secondary area.
+\fIvalue\fR must be a floating point number between 0.1 and 0.9.
+.RE
+.
+.P
+\fB--secondary-sublayout\fR \fBcolumns\fR|\fBrows\fR|\fBstack\fR|\fBgrid\fR
+.RS
+Set the default sublayout of the secondary area.
+.RE
+.
+.P
+\fB--remainder-sublayout\fR \fBcolumns\fR|\fBrows\fR|\fBstack\fR|\fBgrid\fR
+.RS
+Set the default sublayout of the remainder area.
 .RE
 .
 .P
@@ -51,12 +82,6 @@ Set the default padding between windows.
 .RS
 Set the default padding around the layout.
 \fIvalue\fR must be a non-negative integer.
-.RE
-.
-.P
-\fB--sublayout\fR \fBcolumns\fR|\fBrows\fR|\fBstack\fR|\fBgrid\fR
-.RS
-Set the default sublayout of the primary area.
 .RE
 .
 .
@@ -79,12 +104,52 @@ The primary count may not be negative.
 .P
 \fBprimary_ratio\fR \fIvalue\fR
 .RS
-Set or modify the relative size of the primary area.
+Set or modify the relative width of the primary area.
 \fIvalue\fR must be a floating point number.
 If \fIvalue\fR is prefixed by a + or \- sign, it is added or subtracted from the
 current primary ratio.
 Otherwise primary ratio will be set to \fIvalue\fR.
 The primary ration is clamped to the range of 0.1\(en0.9.
+.RE
+.
+.P
+\fBprimary_sublayout\fR \fBcolumns\fR|\fBrows\fR|\fBstack\fR|\fBgrid\fR
+.RS
+Set the sublayout of the primary area.
+.RE
+.
+.P
+\fBsecondary_count\fR \fIvalue\fR
+.RS
+Set or modify the amount of windows in the secondary area.
+\fIvalue\fR must be an integer.
+If \fIvalue\fR is prefixed by a + or \- sign, it is added or subtracted from the
+current secondary count.
+Otherwise secondary count will be set to \fIvalue\fR.
+The secondary count may not be negative.
+.RE
+.
+.P
+\fBsecondary_ratio\fR \fIvalue\fR
+.RS
+Set or modify the relative height of the secondary area.
+\fIvalue\fR must be a floating point number.
+If \fIvalue\fR is prefixed by a + or \- sign, it is added or subtracted from the
+current secondary ratio.
+Otherwise secondary ratio will be set to \fIvalue\fR.
+The secondary ration is clamped to the range of 0.1\(en0.9.
+.RE
+.
+.P
+\fBsecondary_sublayout\fR \fBcolumns\fR|\fBrows\fR|\fBstack\fR|\fBgrid\fR
+.RS
+Set the sublayout of the secondary area.
+.RE
+.
+.P
+\fBremainder_sublayout\fR \fBcolumns\fR|\fBrows\fR|\fBstack\fR|\fBgrid\fR
+.RS
+Set the sublayout of the remainder area.
 .RE
 .
 .P
@@ -118,12 +183,6 @@ If \fIvalue\fR is prefixed by a + or \- sign, it is added or subtracted from the
 current inner and outer padding.
 Otherwise the inner and outer padding will be set to \fIvalue\fR.
 Padding may not be negative.
-.RE
-.
-.P
-\fBsublayout\fR \fBcolumns\fR|\fBrows\fR|\fBstack\fR|\fBgrid\fR
-.RS
-Set the sublayout of the primary area.
 .RE
 .
 .P
