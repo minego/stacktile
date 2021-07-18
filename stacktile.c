@@ -374,7 +374,7 @@ static void layout_handle_layout_demand (void *data, struct river_layout_v3 *riv
 				serial);
 	else if ( remainder_count > 1 )
 	{
-		const uint32_t remainder_x = config->inner_padding + (main_size == 0 ? 0 : main_size + config->inner_padding);
+		const uint32_t remainder_x = config->outer_padding + (main_size == 0 ? 0 : main_size + config->inner_padding);
 		const uint32_t top_size = (uint32_t)(0.6 * (double)(height - config->inner_padding));
 		const uint32_t bottom_size = (uint32_t)(0.4 * (double)(height - config->inner_padding));
 
