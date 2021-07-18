@@ -53,6 +53,7 @@ struct Layout_config
 	uint32_t inner_padding;
 	uint32_t outer_padding;
 	enum Sublayout sublayout;
+	bool all_main;
 };
 
 struct Output
@@ -80,6 +81,9 @@ struct Output
 
 		enum Layout_value_status sublayout_status;
 		enum Sublayout sublayout;
+
+		enum Layout_value_status all_main_status;
+		bool all_main;
 	} pending_layout_config;
 
 	bool configured;
@@ -98,7 +102,8 @@ struct Layout_config default_layout_config = {
 	.main_ratio = 0.6,
 	.inner_padding = 10,
 	.outer_padding = 10,
-	.sublayout = ROWS
+	.sublayout = ROWS,
+	.all_main = false,
 };
 
 static void sublayout_grid (struct river_layout_v3 *river_layout_v3, uint32_t serial,
@@ -234,7 +239,8 @@ static struct Layout_config *get_layout_config (struct Output *output, uint32_t 
 				|| output->pending_layout_config.main_ratio_status != UNCHANGED
 				|| output->pending_layout_config.inner_padding_status != UNCHANGED
 				|| output->pending_layout_config.outer_padding_status != UNCHANGED
-				|| output->pending_layout_config.sublayout_status != UNCHANGED )
+				|| output->pending_layout_config.sublayout_status != UNCHANGED
+				|| output->pending_layout_config.all_main_status != UNCHANGED )
 		{
 			config = calloc(1, sizeof(struct Layout_config));
 			if ( config == NULL )
@@ -306,6 +312,17 @@ static struct Layout_config *get_layout_config (struct Output *output, uint32_t 
 		output->pending_layout_config.main_ratio_status = UNCHANGED;
 	}
 
+	if ( output->pending_layout_config.all_main_status == NEW )
+	{
+		config->all_main = output->pending_layout_config.all_main;
+		output->pending_layout_config.all_main_status = UNCHANGED;
+	}
+	else if ( output->pending_layout_config.all_main_status == MOD )
+	{
+		config->all_main = !config->all_main;
+		output->pending_layout_config.all_main_status = UNCHANGED;
+	}
+
 	return config;
 }
 
@@ -318,7 +335,7 @@ static void layout_handle_layout_demand (void *data, struct river_layout_v3 *riv
 	width -= 2 * config->outer_padding, height -= 2 * config->outer_padding;
 	uint32_t main_size, stack_size;
 
-	const uint32_t main_count = MIN(config->main_count, view_count);
+	const uint32_t main_count = config->all_main ? view_count :  MIN(config->main_count, view_count);
 	const uint32_t remainder_count = view_count - main_count;
 
 	if ( main_count == 0 ) /* No main, only stack. */
@@ -547,6 +564,26 @@ static void layout_handle_user_command (void *data, struct river_layout_v3 *rive
 			return;
 		}
 		output->pending_layout_config.sublayout_status = NEW;
+	}
+	else if (word_comp(command, "all_main"))
+	{
+		const char *second_word = get_second_word(&command, "sublayout");
+		if ( second_word == NULL )
+			return;
+		if (word_comp(second_word, "true"))
+		{
+			output->pending_layout_config.all_main = true;
+			output->pending_layout_config.all_main_status = NEW;
+		}
+		else if (word_comp(second_word, "false"))
+		{
+			output->pending_layout_config.all_main = false;
+			output->pending_layout_config.all_main_status = NEW;
+		}
+		else if (word_comp(second_word, "toggle"))
+			output->pending_layout_config.all_main_status = MOD;
+		else
+			fprintf(stderr, "ERROR: Invalid argument: %s\n", command);
 	}
 	else if (word_comp(command, "reset"))
 	{
