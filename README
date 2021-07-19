@@ -1,3 +1,14 @@
-A simple tiled layout for river which places the main views into columns and the
-stack into a deck.
+stacktile is a layout generator for the river[1] Wayland compositor.
 
+It devides the screen into three areas, the primary area, the secondary area and
+the remainder area. The primary and secondary areas are populated by a
+configurable amount of windows from the top of the window stack. All remaining
+windows will be placed in the remainder area. The windows in these areas are
+arranged into a configurable sublayout.
+
+stacktile is highly adaptable and should fit many use cases. The configuration
+of the layout is individual per tag set. If the layout values are changed, the
+change only applies to the currently focused tag set.
+
+
+[1] https://github.com/ifreund/river
