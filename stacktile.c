@@ -185,13 +185,13 @@ static void sublayout_stack (struct river_layout_v3 *river_layout_v3, uint32_t s
 {
 	const uint32_t width = (uint32_t)(0.95 * (double)_width);
 	const uint32_t height = (uint32_t)(0.95 * (double)_height);
-	const uint32_t x_offset = (uint32_t)(0.05 * (double)_width) / (count - 1);
-	const uint32_t y_offset = (uint32_t)(0.05 * (double)_height) / (count - 1);
+	const double x_offset = (0.05 * (double)_width) / (count - 1);
+	const double y_offset = (0.05 * (double)_height) / (count - 1);
 
 	for (uint32_t i = 0; i < count; i++)
 		river_layout_v3_push_view_dimensions(river_layout_v3,
-				(int32_t)(x + (i * x_offset)),
-				(int32_t)(y + (i * y_offset)),
+				(int32_t)((double)x + (i * x_offset)),
+				(int32_t)((double)y + (i * y_offset)),
 				width, height, serial);
 }
 
