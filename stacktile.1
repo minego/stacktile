@@ -9,14 +9,12 @@ stacktile \- a layout generator for the river Wayland compositor
 .P
 stacktile is a layout generator for river.
 .P
-It devides the screen into three areas, the primary area (left side of the
-screen), the secondary area (top of the right side of the screen) and the
-remainder area (bottom of the right side of screen).
-The windows in these areas are arranged into a configurable sublayout.
-.P
+It devides the screen into three areas, the primary area, the secondary area and
+the remainder area.
 The primary and secondary areas are populated by a configurable amount of
 windows from the top of the window stack.
 All remaining windows will be placed in the remainder area.
+The windows in these areas are arranged into a configurable sublayout.
 .P
 If layout values are changed, the change only applies to the currently focused
 tag set.
@@ -42,6 +40,12 @@ Set the default relative width of the primary area.
 \fB--primary-sublayout\fR \fBcolumns\fR|\fBrows\fR|\fBstack\fR|\fBgrid\fR
 .RS
 Set the default sublayout of the primary area.
+.RE
+.
+.P
+\fB--primary-position\fR \fBtop\fR|\fBright\fR|\fBbottom\fR|\fBleft\fR
+.RS
+Set the default position of the primary area.
 .RE
 .
 .P
@@ -116,6 +120,12 @@ The primary ration is clamped to the range of 0.1\(en0.9.
 \fBprimary_sublayout\fR \fBcolumns\fR|\fBrows\fR|\fBstack\fR|\fBgrid\fR
 .RS
 Set the sublayout of the primary area.
+.RE
+.
+.P
+\fBprimary_position\fR \fBtop\fR|\fBright\fR|\fBbottom\fR|\fBleft\fR
+.RS
+Set the position of the primary area.
 .RE
 .
 .P

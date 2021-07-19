@@ -26,16 +26,19 @@ const char usage[] =
 	"   --primary-count         <int>\n"
 	"   --primary-ratio         <float>\n"
 	"   --primary-sublayout     rows|columns|stack\n"
+	"   --primary-position      top|right|bottom|left\n"
 	"   --secondary-count       <int>\n"
 	"   --secondary-ratio       <float>\n"
 	"   --secondary-sublayout   rows|columns|stack\n"
 	"   --remainder-sublayout   rows|columns|stack\n"
 	"\n";
 
-enum Orientation
+enum Position
 {
-	VERTICAL,
-	HORIZONTAL,
+	TOP,
+	RIGHT,
+	BOTTOM,
+	LEFT,
 };
 
 enum Sublayout
@@ -64,6 +67,7 @@ struct Layout_config
 	uint32_t primary_count;
 	double primary_ratio;
 	enum Sublayout primary_sublayout;
+	enum Position primary_position;
 
 	uint32_t secondary_count;
 	double secondary_ratio;
@@ -93,6 +97,9 @@ struct Output
 
 		enum Layout_value_status primary_sublayout_status;
 		enum Sublayout primary_sublayout;
+
+		enum Layout_value_status primary_position_status;
+		enum Position primary_position;
 
 		enum Layout_value_status secondary_count_status;
 		int32_t secondary_count;
@@ -131,6 +138,7 @@ struct Layout_config default_layout_config = {
 	.primary_count = 1,
 	.primary_ratio = 0.6,
 	.primary_sublayout = ROWS,
+	.primary_position = LEFT,
 
 	.secondary_count = 1,
 	.secondary_ratio = 0.6,
@@ -238,33 +246,46 @@ static void do_sublayout (struct river_layout_v3 *river_layout_v3, uint32_t seri
 	}
 }
 
-/** Split an area into two, based on a ratio. The new area will be to the left
- * of or above the other area. The input coordinates will be shrunk accordingly.
- */
+/** Split off an area from the input area. */
 static void split_off_area (uint32_t *a_x, uint32_t *a_y, uint32_t *a_width, uint32_t *a_height,
 		uint32_t *b_x, uint32_t *b_y, uint32_t *b_width, uint32_t *b_height,
-		uint32_t inner_padding, double ratio, enum Orientation orientation)
+		uint32_t inner_padding, double ratio, enum Position position)
 {
-	/* Behold: ratio is expected to be reasonable, meaning between 0.1 and 0.9. */
-	if ( orientation == HORIZONTAL )
+	switch (position)
 	{
-		*b_x      = *a_x;
-		*b_y      = *a_y;
-		*b_width  = (uint32_t)((double)*a_width * ratio) - (inner_padding / 2);
-		*b_height = *a_height;
+		case TOP:
+			*b_x       = *a_x;
+			*b_y       = *a_y;
+			*b_width   = *a_width;
+			*b_height  = (uint32_t)((double)*a_height * ratio) - (inner_padding / 2);
+			*a_y      += *b_height + inner_padding;
+			*a_height -= *b_height + inner_padding;
+			break;
 
-		*a_x     += *b_width + inner_padding;
-		*a_width -= *b_width + inner_padding;
-	}
-	else
-	{
-		*b_x      = *a_x;
-		*b_y      = *a_y;
-		*b_width  = *a_width;
-		*b_height = (uint32_t)((double)*a_height * ratio) - (inner_padding / 2);
+		case BOTTOM:
+			*b_width   = *a_width;
+			*b_height  = (uint32_t)((double)*a_height * ratio) - (inner_padding / 2);
+			*a_height -= *b_height + inner_padding;
+			*b_x       = *a_x;
+			*b_y       = *a_y + *a_height + inner_padding;
+			break;
 
-		*a_y      += *b_height + inner_padding;
-		*a_height -= *b_height + inner_padding;
+		case LEFT:
+			*b_x       = *a_x;
+			*b_y       = *a_y;
+			*b_width   = (uint32_t)((double)*a_width * ratio) - (inner_padding / 2);
+			*b_height  = *a_height;
+			*a_x      += *b_width + inner_padding;
+			*a_width  -= *b_width + inner_padding;
+			break;
+
+		case RIGHT:
+			*b_width  = (uint32_t)((double)*a_width * ratio) - (inner_padding / 2);
+			*b_height = *a_height;
+			*a_width -= *b_width + inner_padding;
+			*b_x      = *a_x + *a_width + inner_padding;
+			*b_y      = *a_y;
+			break;
 	}
 }
 
@@ -292,6 +313,7 @@ static struct Layout_config *get_layout_config (struct Output *output, uint32_t 
 		if ( output->pending_layout_config.primary_count_status != UNCHANGED
 				|| output->pending_layout_config.primary_ratio_status != UNCHANGED
 				|| output->pending_layout_config.primary_sublayout_status != UNCHANGED
+				|| output->pending_layout_config.primary_position_status != UNCHANGED
 				|| output->pending_layout_config.secondary_count_status!= UNCHANGED
 				|| output->pending_layout_config.secondary_ratio_status != UNCHANGED
 				|| output->pending_layout_config.secondary_sublayout_status != UNCHANGED
@@ -321,6 +343,12 @@ static struct Layout_config *get_layout_config (struct Output *output, uint32_t 
 	{
 		config->primary_sublayout = output->pending_layout_config.primary_sublayout;
 		output->pending_layout_config.primary_sublayout_status = UNCHANGED;
+	}
+
+	if ( output->pending_layout_config.primary_position_status != UNCHANGED )
+	{
+		config->primary_position = output->pending_layout_config.primary_position;
+		output->pending_layout_config.primary_position_status = UNCHANGED;
 	}
 
 	if ( output->pending_layout_config.primary_count_status == NEW )
@@ -442,10 +470,12 @@ static void layout_handle_layout_demand (void *data, struct river_layout_v3 *riv
 		uint32_t primary_x, primary_y, primary_width, primary_height;
 		split_off_area(&x, &y, &width, &height,
 				&primary_x, &primary_y, &primary_width, &primary_height,
-				config->inner_padding, config->primary_ratio, HORIZONTAL);
+				config->inner_padding, config->primary_ratio,
+				config->primary_position);
 		do_sublayout(river_layout_v3, serial,
 				primary_x, primary_y, primary_width, primary_height,
-				config->primary_count, config->inner_padding, config->primary_sublayout);
+				config->primary_count, config->inner_padding,
+				config->primary_sublayout);
 	}
 
 	/* Secondary. */
@@ -459,12 +489,16 @@ static void layout_handle_layout_demand (void *data, struct river_layout_v3 *riv
 	else if ( config->secondary_count != 0 )
 	{
 		uint32_t secondary_x, secondary_y, secondary_width, secondary_height;
+		const enum Position secondary_position =
+				(config->primary_position == LEFT || config->primary_position == RIGHT) ? TOP : LEFT;
 		split_off_area(&x, &y, &width, &height,
 				&secondary_x, &secondary_y, &secondary_width, &secondary_height,
-				config->inner_padding, config->secondary_ratio, VERTICAL);
+				config->inner_padding, config->secondary_ratio,
+				secondary_position);
 		do_sublayout(river_layout_v3, serial,
 				secondary_x, secondary_y, secondary_width, secondary_height,
-				config->secondary_count, config->inner_padding, config->secondary_sublayout);
+				config->secondary_count, config->inner_padding,
+				config->secondary_sublayout);
 	}
 
 	/* Remainder. */
@@ -571,6 +605,24 @@ static bool sublayout_from_string (const char *str, enum Sublayout *sublayout)
 	return true;
 }
 
+static bool position_from_string (const char *str, enum Position *position )
+{
+	/* word_comp() is used here to ignore trailing whitespace. */
+	if (word_comp(str, "top"))
+		*position = TOP;
+	else if (word_comp(str, "right"))
+		*position = RIGHT;
+	else if (word_comp(str, "bottom"))
+		*position = BOTTOM;
+	else if (word_comp(str, "left"))
+		*position = LEFT;
+	else
+	{
+		fprintf(stderr, "ERROR: Unknown position: %s\n", str);
+		return false;
+	}
+	return true;
+}
 
 static void layout_handle_user_command (void *data, struct river_layout_v3 *river_layout_manager_v3,
 		const char *_command)
@@ -606,6 +658,15 @@ static void layout_handle_user_command (void *data, struct river_layout_v3 *rive
 		if (! sublayout_from_string(second_word, &output->pending_layout_config.primary_sublayout))
 			return;
 		output->pending_layout_config.primary_sublayout_status = NEW;
+	}
+	else if (word_comp(command, "primary_position"))
+	{
+		const char *second_word = get_second_word(&command, "primary_position");
+		if ( second_word == NULL )
+			return;
+		if (! position_from_string(second_word, &output->pending_layout_config.primary_position))
+			return;
+		output->pending_layout_config.primary_position_status = NEW;
 	}
 	else if (word_comp(command, "secondary_count"))
 	{
@@ -873,6 +934,7 @@ int main (int argc, char *argv[])
 		PRIMARY_FACTOR,
 		PRIMARY_COUNT,
 		PRIMARY_SUBLAYOUT,
+		PRIMARY_POSITION,
 		SECONDARY_FACTOR,
 		SECONDARY_COUNT,
 		SECONDARY_SUBLAYOUT,
@@ -886,6 +948,7 @@ int main (int argc, char *argv[])
 		{ "primary-ratio",       required_argument, NULL, PRIMARY_FACTOR      },
 		{ "primary-count",       required_argument, NULL, PRIMARY_COUNT       },
 		{ "primary-sublayout",   required_argument, NULL, PRIMARY_SUBLAYOUT   },
+		{ "primary-position",    required_argument, NULL, PRIMARY_POSITION    },
 		{ "secondary-ratio",     required_argument, NULL, SECONDARY_FACTOR    },
 		{ "secondary-count",     required_argument, NULL, SECONDARY_COUNT     },
 		{ "secondary-sublayout", required_argument, NULL, SECONDARY_SUBLAYOUT },
@@ -936,6 +999,11 @@ int main (int argc, char *argv[])
 
 		case PRIMARY_SUBLAYOUT:
 			if (!sublayout_from_string(optarg, &default_layout_config.primary_sublayout))
+				return EXIT_FAILURE;
+			break;
+
+		case PRIMARY_POSITION:
+			if (!position_from_string(optarg, &default_layout_config.primary_position))
 				return EXIT_FAILURE;
 			break;
 
