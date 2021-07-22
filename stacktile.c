@@ -21,6 +21,7 @@
 
 const char usage[] =
 	"Usage: stacktile [options...]\n"
+	"   --per-tag-config\n"
 	"   --inner-padding         <int>\n"
 	"   --outer-padding         <int>\n"
 	"   --primary-count         <int>\n"
@@ -134,6 +135,7 @@ struct wl_list outputs;
 bool loop = true;
 int ret = EXIT_FAILURE;
 
+bool per_tag_config = false;
 struct Layout_config default_layout_config = {
 	.primary_count = 1,
 	.primary_ratio = 0.6,
@@ -298,46 +300,51 @@ static void split_off_area (uint32_t *a_x, uint32_t *a_y, uint32_t *a_width, uin
 static struct Layout_config *get_layout_config (struct Output *output, uint32_t tags)
 {
 	struct Layout_config *config = NULL, *tmp;
-	wl_list_for_each(tmp, &output->layout_configs, link)
-		if ( tmp->tags == tags )
-		{
-			config = tmp;
-			break;
-		}
-
-	if ( config == NULL )
+	if (per_tag_config)
 	{
-		/* No config has been found. If there are pending changes, we
-		 * need to create a new one based on the default config.
-		 */
-		if ( output->pending_layout_config.primary_count_status != UNCHANGED
-				|| output->pending_layout_config.primary_ratio_status != UNCHANGED
-				|| output->pending_layout_config.primary_sublayout_status != UNCHANGED
-				|| output->pending_layout_config.primary_position_status != UNCHANGED
-				|| output->pending_layout_config.secondary_count_status!= UNCHANGED
-				|| output->pending_layout_config.secondary_ratio_status != UNCHANGED
-				|| output->pending_layout_config.secondary_sublayout_status != UNCHANGED
-				|| output->pending_layout_config.remainder_sublayout_status != UNCHANGED
-				|| output->pending_layout_config.inner_padding_status != UNCHANGED
-				|| output->pending_layout_config.outer_padding_status != UNCHANGED
-				|| output->pending_layout_config.all_primary_status != UNCHANGED)
-		{
-			config = calloc(1, sizeof(struct Layout_config));
-			if ( config == NULL )
+		wl_list_for_each(tmp, &output->layout_configs, link)
+			if ( tmp->tags == tags )
 			{
-				fprintf(stderr, "ERROR: calloc: %s\n", strerror(errno));
+				config = tmp;
+				break;
+			}
+
+		if ( config == NULL )
+		{
+			/* No config has been found. If there are pending changes, we
+			 * need to create a new one based on the default config.
+			 */
+			if ( output->pending_layout_config.primary_count_status != UNCHANGED
+					|| output->pending_layout_config.primary_ratio_status != UNCHANGED
+					|| output->pending_layout_config.primary_sublayout_status != UNCHANGED
+					|| output->pending_layout_config.primary_position_status != UNCHANGED
+					|| output->pending_layout_config.secondary_count_status!= UNCHANGED
+					|| output->pending_layout_config.secondary_ratio_status != UNCHANGED
+					|| output->pending_layout_config.secondary_sublayout_status != UNCHANGED
+					|| output->pending_layout_config.remainder_sublayout_status != UNCHANGED
+					|| output->pending_layout_config.inner_padding_status != UNCHANGED
+					|| output->pending_layout_config.outer_padding_status != UNCHANGED
+					|| output->pending_layout_config.all_primary_status != UNCHANGED)
+			{
+				config = calloc(1, sizeof(struct Layout_config));
+				if ( config == NULL )
+				{
+					fprintf(stderr, "ERROR: calloc: %s\n", strerror(errno));
+					return &default_layout_config;
+				}
+				memcpy(config, &default_layout_config, sizeof(struct Layout_config));
+				config->tags = tags;
+				wl_list_insert(&output->layout_configs, &config->link);
+			}
+			else
+			{
+				/* No pending changes, so we can just use the default config. */
 				return &default_layout_config;
 			}
-			memcpy(config, &default_layout_config, sizeof(struct Layout_config));
-			config->tags = tags;
-			wl_list_insert(&output->layout_configs, &config->link);
-		}
-		else
-		{
-			/* No pending changes, so we can just use the default config. */
-			return &default_layout_config;
 		}
 	}
+	else
+		config = &default_layout_config;
 
 	if ( output->pending_layout_config.primary_sublayout_status != UNCHANGED )
 	{
@@ -939,6 +946,7 @@ int main (int argc, char *argv[])
 		SECONDARY_COUNT,
 		SECONDARY_SUBLAYOUT,
 		REMAINDER_SUBLAYOUT,
+		PER_TAG_CONFIG,
 	};
 
 	const struct option opts[] = {
@@ -953,6 +961,7 @@ int main (int argc, char *argv[])
 		{ "secondary-count",     required_argument, NULL, SECONDARY_COUNT     },
 		{ "secondary-sublayout", required_argument, NULL, SECONDARY_SUBLAYOUT },
 		{ "remainder-sublayout", required_argument, NULL, REMAINDER_SUBLAYOUT },
+		{ "per-tag-config",      no_argument,       NULL, PER_TAG_CONFIG      },
 	};
 
 	int opt;
@@ -1029,6 +1038,10 @@ int main (int argc, char *argv[])
 		case REMAINDER_SUBLAYOUT:
 			if (!sublayout_from_string(optarg, &default_layout_config.remainder_sublayout))
 				return EXIT_FAILURE;
+			break;
+
+		case PER_TAG_CONFIG:
+			per_tag_config = true;
 			break;
 
 		default:

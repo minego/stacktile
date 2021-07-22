@@ -17,12 +17,20 @@ All remaining windows will be placed in the remainder area.
 The windows in these areas are arranged into a configurable sublayout.
 .P
 stacktile is highly adaptable and should fit many use cases.
-The configuration of the layout is individual per tag set.
-If the layout values are changed, the change only applies to the currently
-focused tag set.
+By default, stacktile uses the same layout values for all tag sets of an output,
+but per tag values can be enabled as well.
 .
 .
 .SH OPTIONS
+.P
+\fB--per-tag-config\fR
+.RS
+If this option is set, individual tag sets will have individual layout
+values.
+If any value of the layout is changed, the change will only apply to the
+currently focused tag set, instead of to all tag sets on the output.
+.RE
+.
 .P
 \fB--primary-count\fR \fIvalue\fR
 .RS
