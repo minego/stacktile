@@ -48,6 +48,7 @@ enum Sublayout
 	ROWS,
 	STACK,
 	GRID,
+	FULL,
 };
 
 enum Layout_value_status
@@ -153,6 +154,15 @@ struct Layout_config default_layout_config = {
 	.all_primary = false,
 };
 
+static void sublayout_full (struct river_layout_v3 *river_layout_v3, uint32_t serial,
+		uint32_t x, uint32_t y, uint32_t width, uint32_t height, uint32_t count)
+{
+	for (uint32_t i = 0; i < count; i++)
+		river_layout_v3_push_view_dimensions(river_layout_v3,
+				(int32_t)x, (int32_t)y,
+				width, height, serial);
+}
+
 static void sublayout_grid (struct river_layout_v3 *river_layout_v3, uint32_t serial,
 		uint32_t x, uint32_t y, uint32_t _width, uint32_t _height, uint32_t count,
 		uint32_t inner_padding)
@@ -245,6 +255,7 @@ static void do_sublayout (struct river_layout_v3 *river_layout_v3, uint32_t seri
 		case ROWS:       sublayout_rows(river_layout_v3, serial, x, y, width, height, count, inner_padding); break;
 		case STACK:     sublayout_stack(river_layout_v3, serial, x, y, width, height, count); break;
 		case GRID:       sublayout_grid(river_layout_v3, serial, x, y, width, height, count, inner_padding); break;
+		case FULL:       sublayout_full(river_layout_v3, serial, x, y, width, height, count); break;
 	}
 }
 
@@ -604,6 +615,8 @@ static bool sublayout_from_string (const char *str, enum Sublayout *sublayout)
 		*sublayout = STACK;
 	else if (word_comp(str, "grid"))
 		*sublayout = GRID;
+	else if (word_comp(str, "full"))
+		*sublayout = FULL;
 	else
 	{
 		fprintf(stderr, "ERROR: Unknown sublayout: %s\n", str);
