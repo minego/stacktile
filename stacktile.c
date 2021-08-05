@@ -964,7 +964,7 @@ int main (int argc, char *argv[])
 
 	const struct option opts[] = {
 		{ "help",                no_argument,       NULL, 'h'                 },
-		{ "inner-padding",       no_argument,       NULL, INNER_PADDING       },
+		{ "inner-padding",       required_argument, NULL, INNER_PADDING       },
 		{ "outer-padding",       required_argument, NULL, OUTER_PADDING       },
 		{ "primary-ratio",       required_argument, NULL, PRIMARY_FACTOR      },
 		{ "primary-count",       required_argument, NULL, PRIMARY_COUNT       },
