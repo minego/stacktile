@@ -1,0 +1,11 @@
+image: archlinux
+packages:
+  - wayland
+  - wayland-protocols
+sources:
+  - https://git.sr.ht/~leon_plickat/stacktile
+tasks:
+  - build: |
+      cd stacktile
+      make
+
