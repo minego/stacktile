@@ -1,4 +1,4 @@
-stacktile is a layout generator for the river[1] Wayland compositor.
+stacktile[1] is a layout generator for the river[2] Wayland compositor.
 
 It devides the screen into three areas, the primary area, the secondary area and
 the remainder area. The primary and secondary areas are populated by a
@@ -10,5 +10,6 @@ stacktile is highly adaptable and should fit many use cases. The configuration
 of the layout is individual per tag set. If the layout values are changed, the
 change only applies to the currently focused tag set.
 
+[1] https://git.sr.ht/~leon_plickat/stacktile
+[2] https://github.com/ifreund/river
 
-[1] https://github.com/ifreund/river
